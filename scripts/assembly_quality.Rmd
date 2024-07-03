@@ -1,0 +1,66 @@
+---
+title: "quality_control"
+output: pdf_document
+date: "2023-01-24"
+---
+
+# Read packages
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+# Read data
+```{r}
+species = 'human'
+individual = 'hs25'
+```
+
+
+```{r}
+haploid_contigs <- read.table(sprintf('../%s/%s/assembly/%s_diploid.fa.fai', species, individual, individual))
+diploid_contigs <- read.table(sprintf('../%s/%s/assembly/%s_diploid.fa.fai', species, individual, individual))
+
+haploid_contigs <- haploid_contigs %>% 
+  dplyr::select(V1, V2) %>% 
+  rename(contig = V1, contig_length = V2)
+diploid_contigs <- diploid_contigs %>% 
+  dplyr::select(V1, V2) %>% 
+  rename(contig = V1, contig_length = V2)
+
+```
+
+# Cotigs greater than 1 Mb
+```{r}
+# Haploid
+sum(haploid_contigs[haploid_contigs$contig_length > 10^6,]$contig_length) / sum(haploid_contigs$contig_length)
+
+
+# Diploid
+sum(diploid_contigs[diploid_contigs$contig_length > 10^6,]$contig_length) / sum(diploid_contigs$contig_length)
+
+```
+
+# N50
+```{r}
+# Haploid
+
+sum = 0
+for(i in seq(nrow(haploid_contigs))){
+  sum = sum + (haploid_contigs %>% arrange(desc(contig_length)))[i,2]
+  if(sum / sum(haploid_contigs$contig_length) >= 0.5){
+    print((haploid_contigs %>% arrange(desc(contig_length)))[i,2])
+    break
+  }
+}
+
+# Diploid
+sum = 0
+for(i in seq(nrow(diploid_contigs))){
+  sum = sum + (diploid_contigs %>% arrange(desc(contig_length)))[i,2]
+  if(sum / sum(diploid_contigs$contig_length) >= 0.5){
+    print((diploid_contigs %>% arrange(desc(contig_length)))[i,2])
+    break
+  }
+}
+
+```

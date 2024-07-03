@@ -1,0 +1,48 @@
+---
+title: "recombination_plot"
+output: pdf_document
+date: "2024-03-19"
+---
+
+---
+title: "manual_check"
+output: pdf_document
+date: "2023-06-08"
+---
+
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+```{r}
+dsb_fraction <- tibble(sample = c('HS25', 'HS35', 'HS55', 'HT15', 'HT55', 'CT15', 'CT32', 'GT22', 'GT43'),
+                         co_fraction_jump = c(0.4832214765, 0.5215686275, 0.4953271028, 0.3880597015, 0.2777777778, 0.1313868613, 0.0824742268, 0.024, 0.03947368421),
+                         co_fraction_flanking = c(0.5838926174, 0.5666666667, 0.5700934579, 0.4328358209, 0.3055555556, 0.162962963, 0.170212766, 0.04838709677, 0.06849315068),
+                         gc_fraction_jump = c(0.3351648352, 0.3846153846, 0.4583333333, 0.5714285714, 0.06756756757, 0.08641975309, 0, 0.006060606061, 0.01675977654),)
+
+dsb_fraction <- dsb_fraction %>% pivot_longer(!sample, names_to = 'type', values_to = 'fraction') %>% 
+  mutate(enrichment = fraction / 0.0183) # Fraction of genome within DSB hotspots for AA allele
+```
+
+```{r}
+ggplot(dsb_fraction) +
+  geom_col(aes(x = sample, y = fraction, fill = type), position = 'dodge') +
+  scale_x_discrete( limits = c('HS25', 'HS35', 'HS55', 'HT15', 'HT55', 'CT15', 'CT32', 'GT22', 'GT43'),
+    labels = c('HS25', 'HS35', 'HS55', 'HT15', 'HT55', 'CT15', 'CT32', 'GT22', 'GT43')) + 
+  scale_fill_manual(labels = c('Flanking markers of CO', 'Jump SNVs of CO', 'Jump SNVs of GCV'),
+                    values = c("steelblue",'#191970', 'firebrick3')) + 
+  xlab('Sample') + 
+  ggtitle('Enrichment of CO and GCV events\nthat overlap with DSB intervals') + 
+  theme_minimal(base_size = 16) +
+  theme(legend.position = c(0.73, 0.85),
+        legend.title = element_blank()) +
+  scale_y_continuous(
+    name = "Fraction",
+    sec.axis = sec_axis( trans=~./0.0183, name="Enrichment")
+    ) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.9, vjust = 1.1),
+        axis.title.y.right = element_text(angle = 90))
+
+ggsave('../plots/dsb_overlap.pdf', height = 190, width = 190, unit = 'mm')
+```
+
