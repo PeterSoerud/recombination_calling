@@ -1,0 +1,201 @@
+# Load packages
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+# Filter genome
+```{r}
+chromosome_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
+
+t2t_sd <- read.table('../sd/SD_sort.bed') %>% 
+  rename(temp_chromosome = V1, 
+         start = V2,
+         end = V3) %>%
+  mutate(chromosome = factor(temp_chromosome, levels = chromosome_levels)) %>% 
+  select(-temp_chromosome)
+
+acrocentric_sd <- t2t_sd %>%
+  filter(chromosome == 'chr13' & end < 15547593 |
+         chromosome == 'chr14' & end < 10092112 |
+         chromosome == 'chr15' & end < 16678794 |
+         chromosome == 'chr21' & end < 10962853 |
+         chromosome == 'chr22' & end < 12788180)
+
+t2t_sd <- anti_join(t2t_sd, acrocentric_sd) %>%
+  group_by(chromosome) %>% 
+  summarise(sd_length = sum(end -start)) %>%
+  filter(chromosome != 'chr2', chromosome != 'chrX' , chromosome != 'chrY') %>% 
+  drop_na()
+
+```
+
+# Organise data
+```{r}
+sample_dict <- c('ct15' = 'chimp',
+                 'ct22' = 'chimp',
+                 'ct28' = 'chimp',
+                 'ct32' = 'chimp',
+                 'gt21' = 'gorilla',
+                 'gt22' = 'gorilla',
+                 'gt43' = 'gorilla',
+                 'hs25' = 'human',
+                 'hs35' = 'human',
+                 'hs50' = 'human',
+                 'ht20' = 'human',
+                 'ht45' = 'human',
+                 'ht50' = 'human',
+                 'ht55' = 'human',
+                 'ht60' = 'human',
+                 'ht65' = 'human')
+
+types <- c("co", "gcv") 
+data_frames <- list()
+
+for (sample in names(sample_dict)){
+  for(type in types){
+  if(sample == 'hs50' | sample == 'hs25' | sample == 'hs35'){
+    file_path <- sprintf('../sperm_reads/%s/%s/%s_%s.tsv', type, sample, sample, type)
+    data_name <- paste(sample, type, sep = "_")
+    data_frames[[data_name]] <- read.table(file_path, header = TRUE, sep = "\t") %>% 
+      select(chromosome)
+    next
+  }
+    file_path <- sprintf('../classified_reads/%s/%s/%s_%s_germline.tsv', type, sample, sample, type)
+    data_name <- paste(sample, type, sep = "_")
+    if(type == 'co'){
+    data_frames[[data_name]] <- read.table(file_path, header = TRUE, sep = "\t") %>% 
+      select(chromosome)
+    }
+    if(type == 'gcv'){
+    data_frames[[data_name]] <- read.table(file_path, header = TRUE, sep = "\t")  %>% 
+      select(chromosome)
+    }
+  }
+}
+
+all_calls <- tibble()
+
+for(i in seq(length(data_frames))){
+  subset = tibble(temp_chromosome = data_frames[[i]]$chromosome, 
+                  sample = names(data_frames[i]),
+                  type = strsplit(sample, '_')[[1]][2])
+all_calls <- rbind(all_calls, subset)
+}
+
+all_calls <- all_calls %>% 
+  mutate(chromosome = factor(temp_chromosome, levels = chromosome_levels)) %>% 
+  select(-temp_chromosome)
+
+all_co <- all_calls %>% 
+  filter(type == 'co')
+
+all_gcv <- all_calls %>% 
+  filter(type == 'gcv')
+```
+
+
+# CO per chromosome
+```{r}
+t2t <- read_tsv('../human/reference_coordinates/t2t.tsv') %>% 
+  rename(chromosome_length = `Seq length`,
+         chromosome = `UCSC style name`) %>% 
+  filter(chromosome != 'chr2', chromosome != 'chrX' , chromosome != 'chrY') %>% 
+  select(chromosome, chromosome_length)
+
+t2t$adj_chromosome_length <- t2t$chromosome_length - t2t_sd$sd_length
+t2t[t2t$chromosome == 'chr13',]$adj_chromosome_length <- t2t[t2t$chromosome == 'chr13',]$adj_chromosome_length - 15547593
+t2t[t2t$chromosome == 'chr14',]$adj_chromosome_length <- t2t[t2t$chromosome == 'chr14',]$adj_chromosome_length - 10092112
+t2t[t2t$chromosome == 'chr15',]$adj_chromosome_length <- t2t[t2t$chromosome == 'chr15',]$adj_chromosome_length - 16678794
+t2t[t2t$chromosome == 'chr21',]$adj_chromosome_length <- t2t[t2t$chromosome == 'chr21',]$adj_chromosome_length - 10962853
+t2t[t2t$chromosome == 'chr22',]$adj_chromosome_length <- t2t[t2t$chromosome == 'chr22',]$adj_chromosome_length - 12788180
+
+chromosome_count_co <- all_co %>% 
+  group_by(chromosome, type) %>% 
+  count(name = 'count') %>% 
+  filter(chromosome != 'chr2', chromosome != 'chrX' , chromosome != 'chrY')
+
+chromosome_count_co$scaled_count <- chromosome_count_co$count / t2t$adj_chromosome_length
+
+ggplot(chromosome_count_co) + 
+  geom_point(aes(x = chromosome, scaled_count),  col = 'steelblue') + 
+  ylim(0,1.9e-6) + 
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45)) + 
+  xlab('Chromosome') + 
+  ylab('#CO / Chromosome length') 
+  ggsave('../plots/co_rate.pdf', width = 200, height = 140, unit = 'mm')
+
+
+#######################################
+#               GCV                   #
+#######################################
+
+chromosome_count_gcv <- all_gcv %>% 
+  group_by(chromosome, type) %>% 
+  count(name = 'count') %>% 
+  filter(chromosome != 'chr2', chromosome != 'chrX' , chromosome != 'chrY')
+chromosome_count_gcv$scaled_count <- chromosome_count_gcv$count / t2t$adj_chromosome_length
+
+ggplot(chromosome_count_gcv) + 
+  geom_point(aes(x = chromosome, y = scaled_count), col = 'firebrick3') + 
+  ylim(0,1.9e-6) +       
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45)) + 
+  xlab('Chromosome') + 
+  ylab('#GCV / Chromosome length')
+ ggsave('../plots/gc_rate.pdf', width = 200, height = 140, unit = 'mm')
+
+                                                                                                                             
+ratio_df <- rbind(chromosome_count_co, chromosome_count_gcv) %>% 
+  group_by(chromosome) %>% 
+  summarise(CO_count = count[type == 'co'],
+            gcv_count = count[type == 'gcv'],
+            ratio = CO_count / gcv_count)
+
+ggplot(ratio_df) + 
+  geom_point(aes(x = chromosome, y = ratio), col = 'lemonchiffon4') +
+  ylim(0,3) +
+  theme_minimal() + 
+  theme(axis.text.x = element_text(angle = 45)) + 
+  xlab('Chromosome') + 
+  ylab('#CO / #GCV')
+ ggsave('../plots/co_vs_gc.pdf', width = 200, height = 140, unit = 'mm')
+ 
+ 
+ggplot(data = NULL, aes(x = t2t$adj_chromosome_length, y = chromosome_count_gcv$scaled_count)) + 
+  geom_text(aes(label=chromosome_count_co$chromosome)) + 
+  stat_smooth(method = "lm") + 
+  xlab('Adjusted chromosome length') + 
+  ylab('#GCV / Adjusted chromosome length') +
+  theme_minimal()
+  ggsave('../plots/gc_rate.pdf', width = 200, height = 140, unit = 'mm')
+
+ggplot(data = NULL, aes(x = t2t$adj_chromosome_length, y =  chromosome_count_co$scaled_count)) + 
+  geom_text(aes(label=chromosome_count_co$chromosome)) + 
+  stat_smooth(method = "lm") + 
+  xlab('Adjusted chromosome length') + 
+  ylab('#CO / Adjusted chromosome length') +
+  theme_minimal()
+  ggsave('../plots/co_rate.pdf', width = 200, height = 140, unit = 'mm')
+
+
+
+# Ratio
+ggplot(data = NULL, aes(x = t2t$adj_chromosome_length, y = ratio_df$ratio)) + 
+  geom_text(aes(label=chromosome_count_co$chromosome)) + 
+  stat_smooth(method = "lm") + 
+  xlab('Adjusted chromosome length') + 
+  ylab('#CO / #GCV') +
+  theme_minimal() #+
+  ggsave('../plots/co_vs_gc.pdf', width = 200, height = 140, unit = 'mm')
+
+
+# CO
+summary(lm(formula = chromosome_count_co$scaled_count ~ t2t$chromosome_length))
+# GC
+summary(lm(formula = chromosome_count_gcv$scaled_count ~ t2t$chromosome_length))
+# Ratio
+summary(lm(formula = ratio_df$ratio ~ t2t$chromosome_length))
+```
+
+

@@ -1,0 +1,371 @@
+# Load packages
+```{r, message=FALSE}
+library(tidyverse)
+library(MESS)
+```
+
+# Read data
+## recombination map
+```{r}
+chromosome_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
+
+human_recombination_map <- read.table('../human/recombination_map/t2t_rr.txt') %>% 
+  rename(temp_chromosome = V1, chromosome_start = V2, chromosome_end = V3, cMperMb = V4, cM = V5)  %>%
+  arrange(temp_chromosome, chromosome_start) %>% 
+  mutate(chromosome = factor(temp_chromosome, levels = chromosome_levels),
+         length = chromosome_end - chromosome_start,
+               type = 'recombination_map') %>%  
+  group_by(chromosome) %>% 
+  mutate(bins = cumsumbinning(length, 1e5)) %>% 
+  group_by(bins, chromosome) %>%
+  summarise(weighted_rr = sum(cMperMb * length) / sum(length),
+            chromosome_start = chromosome_start,
+            chromosome_end = chromosome_end) %>% 
+  ungroup()
+```
+## sample data frame
+```{r}
+sample_dict <- c('ct15' = 'chimp',
+                 'ct22' = 'chimp',
+                 'ct28' = 'chimp',
+                 'ct32' = 'chimp',
+                 'gt21' = 'gorilla',
+                 'gt22' = 'gorilla',
+                 'gt43' = 'gorilla',
+                 'hs25' = 'human',
+                 'hs35' = 'human',
+                 'hs50' = 'human',
+                 'ht20' = 'human',
+                 'ht45' = 'human',
+                 'ht50' = 'human',
+                 'ht55' = 'human',
+                 'ht60' = 'human',
+                 'ht65' = 'human',
+                 'lt39' = 'gibbon',
+                 'bt15' = 'baboon',
+                 'mt5' = 'macaque')
+
+types <- c("co", "gcv") 
+data_frames <- list()
+
+for (sample in names(sample_dict)){
+  for(type in types){
+  if(sample == 'hs50' | sample == 'hs25' | sample == 'hs35'){
+    file_path <- sprintf('../sperm_reads/%s/%s/%s_%s.tsv', type, sample, sample, type)
+    data_name <- paste(sample, type, sep = "_")
+    data_frames[[data_name]] <- read.table(file_path, header = TRUE, sep = "\t")
+    next
+  }
+  if(sample == 'lt39' | sample == 'bt15' | sample == 'mt5'){
+    file_path <- sprintf('../unclassified_reads/%s/%s/%s_%s.tsv', type, sample, sample, type)
+    data_name <- paste(sample, type, sep = "_")
+    data_frames[[data_name]] <- read.table(file_path, header = TRUE, sep = "\t")
+    next
+  }
+    file_path <- sprintf('../classified_reads/%s/%s/%s_%s_germline.tsv', type, sample, sample, type)
+    data_name <- paste(sample, type, sep = "_")
+    if(type == 'co'){
+    data_frames[[data_name]] <- read.table(file_path, header = TRUE, sep = "\t") 
+    }
+    if(type == 'gcv'){
+    data_frames[[data_name]] <- read.table(file_path, header = TRUE, sep = "\t") 
+    }
+  }
+}
+```
+
+# Calls within first 20 Mb
+```{r}
+telomere_function <- function(data, recombination_type, id, tissue, species){
+  bins = seq(0, 20)
+  bin_classes = c(seq(1,20))
+  bin_classes = factor(bin_classes, levels = bin_classes)
+telomere_events <- data %>% group_by(chromosome) %>% mutate(within_20_mb = right_jump_snp_ref / 10^6 < 20| abs(right_jump_snp_ref / 10^6 -chromosome_length / 10^6) < 20,
+                                                            id = id,
+                                                            tissue = tissue,
+                                                            species = species) %>% 
+  filter(within_20_mb == T) %>% 
+  ungroup() %>%
+  rowwise() %>%  mutate(dist_to_telomere = min(right_jump_snp_ref / 10^6, abs(right_jump_snp_ref / 10^6 -chromosome_length / 10^6)),
+                        bin = bin_classes[ceiling(abs(dist_to_telomere))],
+                        type = recombination_type) %>% 
+  select(chromosome, right_jump_snp_ref, chromosome_length, id, tissue, species, bin, type)
+
+return(telomere_events)
+}
+
+sample_dict <- list('hs25' = c('human_sperm', 'sperm', 'human_sperm'),
+                 'hs35' = c('human_sperm', 'sperm', 'human_sperm'),
+                 'hs50' = c('human_sperm', 'sperm', 'human_sperm'),
+                 'ht20' = c('human_testis', 'testis', 'human_testis'),
+                 'ht45' = c('human_testis', 'testis', 'human_testis'),
+                 'ht50' = c('human_testis', 'testis', 'human_testis'),
+                 'ht55' = c('human_testis', 'testis', 'human_testis'),
+                 'ht60' = c('human_testis', 'testis', 'human_testis'),
+                 'ht65' = c('human_testis', 'testis', 'human_testis'),
+                 'ct15' = c('chimpanzee', 'testis', 'chimpanzee'),
+                 'ct22' = c('chimpanzee', 'testis', 'chimpanzee'),
+                 'ct28' = c('chimpanzee', 'testis', 'chimpanzee'),
+                 'ct32' = c('chimpanzee', 'testis', 'chimpanzee'),
+                 'gt21' = c('western_gorilla', 'testis', 'western_gorilla'),
+                 'gt22' = c('western_gorilla', 'testis', 'western_gorilla'),
+                 'gt43' = c('western_gorilla', 'testis', 'western_gorilla'),
+                 'lt39' = c('lar_gibbon', 'testis', 'lar_gibbon'),
+                 'bt15' = c('guinea_baboon', 'testis', 'guinea_baboon'),
+                 'mt5' = c('pig_tailed_macaque', 'testis', 'pig_tailed_macaque')
+                 )
+
+types <- c("CO", "GCV") 
+co_20_mb <- tibble()
+gcv_20_mb <- tibble()
+
+for (type in types) {
+  for (sample in names(sample_dict)){
+    if(type == 'CO'){
+      co_20_mb <- rbind(co_20_mb, telomere_function(data_frames[[paste(sample, tolower(type), sep = "_")]], type, sample, sample_dict[[sample]][2], sample_dict[[sample]][3])) %>% 
+        ungroup()
+    }
+    if(type == 'GCV'){
+      gcv_20_mb <- rbind(gcv_20_mb, telomere_function(data_frames[[paste(sample, tolower(type), sep = "_")]], type, sample, sample_dict[[sample]][2], sample_dict[[sample]][3])) %>% 
+        ungroup()
+    }
+  }  
+}
+
+```
+
+# Species comparison
+```{r, message=F}
+plot_data_co <- co_20_mb %>%
+  group_by(bin, species, tissue) %>% 
+  summarise(count = n()) %>% 
+  ungroup() %>% 
+  group_by(species, tissue) %>% 
+  mutate(fraction = count / sum(count),
+         cum_fraction = cumsum(fraction))
+
+plot_data_co$species <- factor(plot_data_co$species, 
+                               levels = c('human_sperm', 
+                                           'human_testis', 
+                                           'chimpanzee', 
+                                           'western_gorilla',
+                                           'lar_gibbon',
+                                           'guinea_baboon',
+                                           'pig_tailed_macaque'))
+
+
+ggplot(plot_data_co) +
+  geom_col(aes(x = bin, y = count, fill = species), position = 'dodge') +
+  xlab('Distance to telomere (Mb)') +
+  ylab('Number of CO events') +
+  ylim(0,60) +
+  theme_minimal(base_size = 16) + 
+  scale_fill_manual(labels = c('Human sperm', 'Human', 'Chimpanzee', 'Western gorilla', 'Lar gibbon', 'Guinea baboon', 'Pig-tailed macaque'),
+                   values = c('#E64B35FF',"#4DBBD5FF",'#00A087FF', '#3C5488FF', '#F39B7FFF', '#8491B4FF', '#B09C85FF')) +
+  theme(legend.position = c(0.855, 0.69),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 8),
+        axis.text.x = element_text(angle = 45),
+        legend.key.size = unit(6, 'mm'))
+  ggsave('../plots/telomere_co_20mb.pdf', height = 150, width = 150, bg = 'white', units = 'mm')
+
+
+plot_data_gcv <- gcv_20_mb %>%
+  group_by(bin, species, tissue) %>% 
+  summarise(count = n())
+plot_data_gcv$species <- factor(plot_data_gcv$species, 
+                                levels = c('human_sperm', 
+                                           'human_testis', 
+                                           'chimpanzee', 
+                                           'western_gorilla',
+                                           'lar_gibbon',
+                                           'guinea_baboon',
+                                           'pig_tailed_macaque')
+                                )
+
+ggplot(plot_data_gcv) +
+  geom_col(aes(x = bin, y = count, fill = species), position = 'dodge') +
+  xlab('Distance to telomere (Mb)') +
+  ylab('Number of GCV events') + 
+  ylim(0,60) +
+  theme_minimal(base_size = 16) + 
+  scale_fill_manual(labels = c('Human sperm', 'Human', 'Chimpanzee', 'Western gorilla', 'Lar gibbon', 'Guinea baboon', 'Pig-tailed macaque'),
+                   values = c('#E64B35FF',"#4DBBD5FF",'#00A087FF', '#3C5488FF', '#F39B7FFF', '#8491B4FF', '#B09C85FF')) +
+  theme(legend.position = c(0.855, 0.69),
+        legend.title = element_blank(),
+        legend.text = element_text(size = 8),
+        axis.text.x = element_text(angle = 45),
+        legend.key.size = unit(6, 'mm')) 
+  ggsave('../plots/telomere_gc_20mb.pdf', height = 150, width = 150, bg = 'white', units = 'mm')
+  
+```
+
+# Recombination map
+```{r}
+sperm_data_co <- rbind(data_frames[['hs50_co']],
+                    data_frames[['hs25_co']],
+                    data_frames[['hs35_co']])
+
+sperm_data_gcv <- rbind(data_frames[['hs50_gcv']],
+                    data_frames[['hs25_gcv']],
+                    data_frames[['hs35_gcv']])
+
+human_testis_data_co <- rbind(data_frames[['ht45_co']], 
+                              data_frames[['ht50_co']],
+                              data_frames[['ht60_co']],
+                              data_frames[['ht65_co']])
+
+human_testis_data_gcv <- rbind(data_frames[['ht45_gcv']], 
+                              data_frames[['ht50_gcv']],
+                              data_frames[['ht60_gcv']],
+                              data_frames[['ht65_gcv']])
+
+chimp_testis_data_co <- rbind(data_frames[['ct32_co']], 
+                              data_frames[['ct15_co']])
+
+chimp_testis_data_gcv <- rbind(data_frames[['ct32_gcv']], 
+                              data_frames[['ct15_gcv']])
+
+gorilla_testis_data_co <- rbind(data_frames[['gt22_co']], 
+                              data_frames[['gt43_co']])
+
+gorilla_testis_data_gcv <- rbind(data_frames[['gt22_gcv']], 
+                              data_frames[['gt43_gcv']])
+
+```
+
+## rr in called positions CO
+```{r}
+rr_in_co_events <-  function(data){
+
+  co_events_with_rr_rate <- tibble()
+
+  for(chromosome_name in chromosome_levels[1:22]){
+    rr <- human_recombination_map %>% 
+      filter(chromosome == chromosome_name) %>%
+      dplyr::select(chromosome, bins, chromosome_end, weighted_rr)
+  
+  recombination_rate_per_chr <- data %>% 
+    filter(chromosome == chromosome_name) %>% 
+    rowwise() %>% 
+    mutate(rec_rate = floor(rr$weighted_rr[which.min(abs((right_jump_snp_ref + left_jump_snp_ref) / 2 - rr$chromosome_end))]),
+           raw_rec_rate = rr$weighted_rr[which.min(abs((right_jump_snp_ref + left_jump_snp_ref) / 2 - rr$chromosome_end))],
+           bins = rr$bins[which.min(abs((right_jump_snp_ref + left_jump_snp_ref) / 2 - rr$chromosome_end))]
+    )
+    co_events_with_rr_rate <-rbind(co_events_with_rr_rate, recombination_rate_per_chr)
+  }
+
+  co_events_with_rr_rate <- co_events_with_rr_rate %>%
+    ungroup() %>% 
+    mutate(type = 'CO') %>%
+    select(-c(left_flank_ref, right_flank_ref))
+  
+  return(co_events_with_rr_rate)
+}
+
+```
+
+## rr in called positions GCV
+```{r}
+rr_in_gcv_events <-  function(data){
+  gcv_events_with_rr_rate <- tibble()
+  
+  for(chromosome_name in chromosome_levels[1:22]){
+    rr <- human_recombination_map %>% 
+      filter(chromosome == chromosome_name) %>%
+      dplyr::select(chromosome, bins, chromosome_end, weighted_rr)
+  
+  recombination_rate_per_chr <- data %>% 
+    filter(chromosome == chromosome_name) %>% 
+    rowwise() %>% 
+    mutate(rec_rate = floor(rr$weighted_rr[which.min(abs((right_jump_snp_ref + left_jump_snp_ref) / 2 - rr$chromosome_end))]), 
+           raw_rec_rate = rr$weighted_rr[which.min(abs((right_jump_snp_ref + left_jump_snp_ref) / 2 - rr$chromosome_end))],
+          bins = rr$bins[which.min(abs((right_jump_snp_ref + left_jump_snp_ref) / 2  - rr$chromosome_end))]
+          )
+    gcv_events_with_rr_rate <-rbind(gcv_events_with_rr_rate, recombination_rate_per_chr)
+  }
+  
+  gcv_events_with_rr_rate <- gcv_events_with_rr_rate %>% 
+    ungroup() %>%
+    mutate(type = 'GCV')
+  
+  return(gcv_events_with_rr_rate)
+}
+```
+
+# rr plot
+```{r}
+#sperm_data_co/gcv
+#human_testis_data_co/gcv
+#chimp_testis_data_co/gcv
+#gorilla_testis_data_co/gcv
+
+co_calls_with_rr <- rr_in_co_events(human_testis_data_co) %>% select(-CO_event)
+gcv_calls_with_rr <- rr_in_gcv_events(human_testis_data_gcv) %>% select(-GC_event)
+
+plot_data_co_gcv <- rbind(co_calls_with_rr, gcv_calls_with_rr) %>%
+  group_by(type, rec_rate) %>% 
+  summarise(count = n()) 
+
+plot_data_co_gcv[plot_data_co_gcv$rec_rate >= 10 & plot_data_co_gcv$type == 'CO',]$count <- sum(plot_data_co_gcv[plot_data_co_gcv$rec_rate >= 10 & plot_data_co_gcv$type == 'CO',]$count)
+plot_data_co_gcv[plot_data_co_gcv$rec_rate >= 10 & plot_data_co_gcv$type == 'GCV',]$count <- sum(plot_data_co_gcv[plot_data_co_gcv$rec_rate >= 10 & plot_data_co_gcv$type == 'GCV',]$count) 
+
+plot_data_co_gcv <- plot_data_co_gcv %>% filter(rec_rate <= 10) %>% complete(rec_rate = seq(0,10), fill = list(count = 0 ))
+
+ref_weighted_rr_vector <- human_recombination_map %>% 
+  group_by(bins, chromosome) %>% 
+  distinct(bins, .keep_all = T) %>% 
+  ungroup() %>%
+  pull(weighted_rr)
+
+##########################################
+# COUNT NUMBER OF BINS IN RECOMBINATION MAP
+###########################################
+ref_intervals <- tibble(interval = cut(ref_weighted_rr_vector, breaks = seq(0,30),include.lowest = T)) %>% 
+  group_by(interval) %>%  
+  summarise(count = n()) %>% 
+  complete(interval, fill = list(count = 0)) %>% 
+  mutate(interval_id = seq(0,29))
+
+levels(ref_intervals$interval) <- c(levels(ref_intervals$interval), '+10') # Adds +10 as level in vector
+
+##########################################
+# MERGE REC RATE GREATER THAN 10
+###########################################
+ref_intervals[ref_intervals$interval_id >= 10,]$count <- sum(ref_intervals[ref_intervals$interval_id >= 10,]$count) 
+ref_intervals <- ref_intervals %>% dplyr::slice(1:11)
+ref_intervals$interval[ref_intervals$interval == '(10,11]'] <- '+10'
+
+##########################################
+# ADD FREQUENCIES
+###########################################
+ref_intervals <- ref_intervals %>% 
+  mutate(freq = count / sum(count))
+
+##########################################
+# ADD EXPECTED COUNTS 
+###########################################
+plot_data_co_gcv <- plot_data_co_gcv %>% 
+  group_by(type) %>%
+  mutate(expected = sum(count) * ref_intervals$freq)
+  
+ggplot(plot_data_co_gcv) + 
+  geom_col(aes(x = rec_rate, y = count, fill = type), position = 'dodge', col = 'black', bins = 21, show.legend = F) +
+  geom_point(aes(x = rec_rate, y = expected, col = type), position = position_dodge(width = 1), size=2, show.legend = F) +
+  scale_x_continuous(breaks = seq(0, 10),
+                     labels = ref_intervals$interval) + 
+  xlab('Recombination rate (cM/Mb)') + 
+  ylab('Count') + 
+  ggtitle('Human testis CO and GCV events') +
+  scale_fill_manual(values = c("steelblue","firebrick3"))+
+  scale_color_manual(values = c("black","black")) +
+  theme_minimal(base_size = 16) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.9, vjust = 1.1),
+        panel.grid.minor = element_blank()) + 
+  facet_wrap(~type)
+
+ggsave('../plots/recombination_rate/human_testis_rec_rate_binned_new.pdf', height = 190, width = 190, unit = 'mm')
+```
+
+
+

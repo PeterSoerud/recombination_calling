@@ -1,0 +1,346 @@
+```{r, message=FALSE}
+library(tidyverse)
+library(hablar)
+```
+
+# Define sample
+```{r}
+sample_dict <- c('ct15' = 'chimp',
+                 'ct22' = 'chimp',
+                 'ct28' = 'chimp',
+                 'ct32' = 'chimp',
+                 'gt21' = 'gorilla',
+                 'gt22' = 'gorilla',
+                 'gt43' = 'gorilla',
+                 'ht20' = 'human',
+                 'ht45' = 'human',
+                 'ht50' = 'human',
+                 'ht55' = 'human',
+                 'ht60' = 'human',
+                 'ht65' = 'human')
+
+sample_dict <- c('hs25' = 'human',
+                 'hs35' = 'human',
+                 'hs50' = 'human')
+
+```
+
+# Ambigous reads
+```{r}
+# Ambigous reads are defined as reads that can both be classified as somatic and germline. However, these cases are rare. 
+for(sample in names(sample_dict)){
+  ambiguous_classification <- read.table(
+    sprintf('../classified_reads/before_split/all_reads/%s_recombination_plus_methylation.tsv', 
+          sample), 
+    header = T) %>%
+    group_by(read_name) %>% 
+    filter(any(LL_maxGerm_minus_maxNonGerm > 0) & 
+            any(LL_maxGerm_minus_maxNonGerm < 0)) %>% 
+    distinct(read_name) %>%
+    nrow()
+  print(c(sample, ambiguous_classification))
+}
+```
+
+# Combine raw calls with chromosomal positions
+```{r}
+tissue = 'sperm' #'sperm'  # define tissue
+
+for(sample in names(sample_dict)){
+  for(type in c('somatic','germline')){
+  
+    if(tissue == 'testis' & type == 'germline'){
+    sample_recombination_raw <- read.table(
+      sprintf('../classified_reads/before_split/all_reads/%s_recombination_plus_methylation.tsv', 
+              sample), 
+      header = T) %>%
+      group_by(read_name) %>%
+      filter(!(any(LL_maxGerm_minus_maxNonGerm > 0) & 
+                 any(LL_maxGerm_minus_maxNonGerm < 0))) %>% 
+      filter(LL_maxGerm_minus_maxNonGerm > 0) %>%
+      distinct(read_name, .keep_all = T)
+    }
+  
+  else if(tissue == 'testis' & type == 'somatic'){
+    sample_recombination_raw <- read.table(
+      sprintf('../classified_reads/before_split/all_reads/%s_recombination_plus_methylation.tsv', 
+              sample),
+      header = T) %>% 
+      group_by(read_name) %>% 
+      filter(!(any(LL_maxGerm_minus_maxNonGerm > 0) & 
+                 any(LL_maxGerm_minus_maxNonGerm < 0))) %>% 
+      filter(LL_maxGerm_minus_maxNonGerm < 0) %>% 
+      distinct(read_name, .keep_all = T)
+  }
+  
+  if(tissue == 'sperm'){
+  sample_recombination_raw <- read.table(
+    sprintf('../%s/%s/raw_calls/%s_recombination_v5.bed',
+                                                     sample_dict[[sample]], 
+                                                     sample, 
+                                                     sample), 
+                                             header = T) 
+  sample_recombination_raw <- sample_recombination_raw[-grep("contig", sample_recombination_raw$contig),] %>% 
+    convert(int(previous_snp, 
+                jump_snp, 
+                next_snp, 
+                count_haplotype_one, 
+                count_haplotype_two,
+                number_of_jumps, 
+                jump_snp_pos_in_read))
+  }
+  if(sample_dict[[sample]] == 'human'){
+    chromosome_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
+  }
+  
+  if(sample_dict[[sample]] == 'chimp' | sample_dict[[sample]] == 'gorilla'){
+   chromosome_levels <- c('chr1', 'chr2A', 'chr2B', paste0('chr', 3:22), 'chrX', 'chrY')
+  }
+  
+  
+  sample_ref_coordinates <- read.table(sprintf('../%s/%s/raw_calls/%s_read_locations.bed',
+                                                   sample_dict[[sample]], 
+                                                     sample, 
+                                                     sample)) %>%
+    rename(read_name = V1, 
+           temp_strand = V2, 
+           encoded_chromosome = V3, 
+           chromosome_start = V4) %>% 
+    mutate(ref_strand = ifelse(temp_strand == 0, 
+                               '+', 
+                               '-')
+           ) %>% 
+    select(-temp_strand)
+  
+    if(sample_dict[[sample]] == 'human') {
+      sample_ref_coordinates <- sample_ref_coordinates %>% 
+        mutate(chromosome = factor(encoded_chromosome, 
+                                   levels = chromosome_levels)
+               ) %>%
+        select(-encoded_chromosome)
+    }  
+    
+    if(sample_dict[[sample]] == 'chimp' | sample_dict[[sample]] == 'gorilla'){
+    sample_ref_coordinates <- sample_ref_coordinates  %>%
+    rowwise() %>% 
+    mutate(temp_chromosome = sprintf('chr%s', toupper(strsplit(encoded_chromosome, 'hsa')[[1]][2])),
+           chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+           ) %>% 
+    filter(nchar(temp_chromosome) <= 5) %>%
+        select(-c(encoded_chromosome, temp_chromosome))
+    }
+ 
+  sample_recombination <- left_join(sample_recombination_raw, 
+                                        sample_ref_coordinates, 
+                                        by = 'read_name') %>%
+  mutate(right_jump_snp_ref = ifelse(strand == ref_strand, 
+  chromosome_start + jump_snp_pos_in_read, 
+  chromosome_start + as.integer(read_length) - jump_snp_pos_in_read)
+  ) %>% 
+    distinct(read_name, .keep_all = T)
+
+write.table(sample_recombination, 
+            file = sprintf('../%s/%s/output_files/all_calls/%s_all_calls_%s.tsv',
+                                                     sample_dict[[sample]], 
+                                                     sample, 
+                                                     sample,
+                                                     type), 
+            sep = '\t', 
+            col.names = TRUE, 
+            row.names = FALSE, 
+            quote = FALSE)
+  }
+}
+
+```
+# Load reads with events
+```{r message=FALSE}
+sample = 'ct22'
+species = 'chimp'
+type = 'somatic' # somatic # germline
+sample_recombination <- read.table(
+  sprintf('../%s/%s/output_files/all_calls/%s_all_calls_%s.tsv', 
+                                           species, 
+                                           sample, 
+                                           sample,
+                                           type), 
+                                   header = T) %>% 
+  mutate(chromosome_end = chromosome_start + read_length) %>% 
+  drop_na('chromosome')
+
+if(species == 'human'){
+    chromosome_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
+  }
+  
+  if(species == 'chimp' | species == 'gorilla'){
+   chromosome_levels <- c('chr1', 'chr2A', 'chr2B', paste0('chr', 3:22), 'chrX', 'chrY')
+  }
+  
+sample_recombination <- sample_recombination %>% 
+  rename(temp_chromosome = chromosome) %>% 
+  mutate(chromosome = factor(temp_chromosome, levels = chromosome_levels)) %>% 
+  select(-temp_chromosome)
+```
+## Acrocentric plus SD (HUMAN ONLY)
+```{r}
+ ########################################################################################
+#                         FILTER ACROCENTRIC CHROMOSOMES                              #
+########################################################################################
+sample_recombination_acrocentric <- sample_recombination %>% 
+  filter(
+    (chromosome == 'chr13' & chromosome_end < 15547593) | 
+    (chromosome == 'chr14' & chromosome_end < 10092112) | 
+    (chromosome == 'chr15' & chromosome_end < 16678794) | 
+    (chromosome == 'chr21' & chromosome_end < 10962853) | 
+    (chromosome == 'chr22' & chromosome_end < 12788180)
+    ) %>% 
+  distinct(read_name, jump_snp, .keep_all = T)
+
+sample_acrocentric_count <- nrow(sample_recombination_acrocentric)
+
+########################################################################################
+#                         FILTER SEGEMENTAL DUPLICATIONS                               #
+########################################################################################
+intersect_sd_table <- sample_recombination %>% 
+  select(c('chromosome', 'chromosome_start', 'chromosome_end')
+         ) %>%
+  arrange(chromosome, chromosome_start)
+
+
+write.table(intersect_sd_table, 
+            file = sprintf('../%s/%s/sd_intersect/%s_intersect_sd_%s_table.bed', 
+                                               species, 
+                                               sample, 
+                                               sample,
+                                               type), 
+            quote = F, 
+            sep = '\t', 
+            row.names = F, 
+            col.names = F)
+
+sample_sd_recombination <- read.table(sprintf('../%s/%s/sd_intersect/%s_sd_%s_overlap.bed', 
+                                              species, 
+                                              sample, 
+                                              sample,
+                                              type)
+                                      ) %>% 
+  rename(chromosome = V1, 
+         chromosome_start = V2, 
+         chromosome_end = V3) %>% 
+  distinct(chromosome, 
+           chromosome_start, 
+           chromosome_end, 
+           .keep_all = T)
+
+sd_igv <- inner_join(sample_recombination, 
+             sample_sd_recombination, 
+             by = c('chromosome','chromosome_start', 'chromosome_end')
+             ) %>%
+  distinct(read_name, jump_snp, .keep_all = T)
+  
+write.table(sd_igv, 
+            file = sprintf('../sd/%s_sd_table.tsv',
+                           sample),
+            quote = F, 
+            sep = '\t', 
+            row.names = F, 
+            col.names = T)
+
+sample_sd_recombination <- anti_join(
+  inner_join(sample_recombination, 
+             sample_sd_recombination, 
+             by = c('chromosome','chromosome_start', 'chromosome_end')
+             ),
+  sample_recombination_acrocentric, 
+  by = c('chromosome','chromosome_start', 'chromosome_end')) %>%
+  distinct(read_name, jump_snp, .keep_all = T)
+
+sample_sd_count <- nrow(sample_sd_recombination)
+
+sample_recombination_no_acro_no_sd <- anti_join(sample_recombination, 
+                                                rbind(sample_recombination_acrocentric,
+                                                      sample_sd_recombination)
+                                                )
+```
+## CO, GCV, boundary, and complex
+```{r, message=FALSE}
+########################################################################################
+#                         FILTER REST                                                  #
+########################################################################################  
+if(species != 'human'){
+sample_recombination_no_acro_no_sd <- sample_recombination
+}
+
+sample_crossing_over <- sample_recombination_no_acro_no_sd %>% 
+  filter(number_of_jumps == 1 & count_haplotype_one > 1 & count_haplotype_two > 1)
+sample_crossing_over_count <- nrow(sample_crossing_over)
+
+sample_gene_conversion <- sample_recombination_no_acro_no_sd %>% 
+  filter(number_of_jumps == 2)
+sample_gene_conversion_count <- nrow(sample_gene_conversion)
+
+sample_boundary <- sample_recombination_no_acro_no_sd %>%
+  filter(number_of_jumps == 1 & (count_haplotype_one == 1 | count_haplotype_two == 1))
+sample_boundary_count <- nrow(sample_boundary)
+
+sample_single_read_complex <- anti_join(sample_recombination_no_acro_no_sd, 
+                                        rbind(sample_crossing_over, 
+                                              sample_gene_conversion, 
+                                              sample_boundary), 
+                                        by = c('contig','jump_snp')
+                                        ) %>%  
+  distinct(read_name, jump_snp, .keep_all = T)
+sample_single_read_complex_count <- nrow(sample_single_read_complex)
+
+sample_crossing_over_count + 
+  sample_gene_conversion_count + 
+  sample_boundary_count + 
+  sample_single_read_complex_count
+
+
+write.table(sample_gene_conversion, 
+            file = sprintf('../%s/%s/output_files/gcv/%s_gene_conversion_v5_%s.txt', 
+                           species, 
+                           sample, 
+                           sample, 
+                           type), 
+            sep = '\t', 
+            col.names = TRUE, 
+            row.names = FALSE, 
+            quote = FALSE) 
+
+write.table(sample_crossing_over,
+            file =sprintf('../%s/%s/output_files/co/%s_crossing_over_v5_%s.txt', 
+                          species, 
+                          sample, 
+                          sample, 
+                          type), 
+            sep = '\t', 
+            col.names = TRUE, 
+            row.names = FALSE, 
+            quote = FALSE) 
+
+write.table(sample_boundary, 
+            file =sprintf('../%s/%s/output_files/boundary/%s_boundary_v5_%s.txt', 
+                          species, 
+                          sample, 
+                          sample, 
+                          type), 
+            sep = '\t', 
+            col.names = TRUE, 
+            row.names = FALSE, 
+            quote = FALSE) 
+
+write.table(sample_single_read_complex, 
+            file =sprintf('../%s/%s/output_files/complex/%s_complex_v5_%s.txt', 
+                          species, 
+                          sample, 
+                          sample, 
+                          type), 
+            sep = '\t', 
+            col.names = TRUE, 
+            row.names = FALSE, 
+            quote = FALSE ) 
+```
+

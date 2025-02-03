@@ -1,0 +1,1 @@
+contig	previous_snp	jump_snp	next_snp	read_name	count_haplotype_one	count_haplotype_two	ref_bases	alt_bases	read_bases	haplotype_string	number_of_jumps	jump_snp_pos_in_read	snp_pos_in_read	strand	read_length	chromosome_start	ref_strand	right_jump_snp_ref	chromosome_end	chromosome	chromosome_length	first_snp_ref	last_snp_ref

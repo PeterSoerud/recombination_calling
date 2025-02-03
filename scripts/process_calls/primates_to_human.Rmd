@@ -1,0 +1,223 @@
+# Load packages
+```{r}
+library(tidyverse)
+```
+
+# Functions
+```{r}
+ref_pos_co_events <- function(data, number_of_flanking_snps){
+  before_vector <- c()
+  after_vector <- c()
+  for(i in seq(nrow(data))){
+    jump_snp = data$jump_snp[i]
+    snps = as.numeric(strsplit(data$snp_pos_in_read[i], ',')[[1]])
+    jump_snp_index = which(jump_snp == snps)
+    last_index = length(snps)
+    second_flanking_before = snps[jump_snp_index - number_of_flanking_snps]
+    second_flanking_after = snps[jump_snp_index + number_of_flanking_snps - 1]
+    dist_to_flanking_before = jump_snp - second_flanking_before
+    dist_to_flanking_after = second_flanking_after - jump_snp
+    before_vector <- c(before_vector, dist_to_flanking_before)
+    after_vector <- c(after_vector, dist_to_flanking_after)
+}
+return(list(before_vector, after_vector))
+}
+```
+
+# Sample dictionary
+```{r}
+sample_dict <- c('ct15' = 'chimp',
+                 'ct22' = 'chimp',
+                 'ct28' = 'chimp',
+                 'ct32' = 'chimp',
+                 'gt21' = 'gorilla',
+                 'gt22' = 'gorilla',
+                 'gt43' = 'gorilla',
+                 'lt39' = 'gibbon',
+                 'bt15' = 'baboon',
+                 'mt5' = 'macaque')
+```
+
+# CO
+```{r, message=FALSE, warning=FALSE}
+chromosome_levels <- c(paste0('chr', 1:22), "chrX", "chrY")
+for(individual in names(sample_dict)){
+  human_coords <- read.table(sprintf('../%s/%s/raw_calls/%s_read_locations_human.bed',
+                             sample_dict[[individual]],
+                             individual,
+                             individual)
+                             ) %>% 
+    rename(read_name = V1, 
+         temp_strand = V2, 
+         temp_chromosome = V3, 
+         chromosome_start = V4) %>% 
+    mutate(ref_strand = ifelse(temp_strand == 0, 
+                             '+', 
+                             '-')
+         ) %>% 
+    select(-temp_strand) %>% 
+    filter(temp_chromosome != '*')
+  
+  if(individual== 'lt39' | individual== 'bt15' | individual== 'mt5'){
+    file_path = sprintf('../unclassified_reads/co/%s/%s_co.tsv',
+                           individual,
+                           individual)
+  } else{
+    file_path = sprintf('../classified_reads/co/%s/%s_co_germline.tsv',
+                           individual,
+                           individual)
+  }
+  primate_df <- read.table(file_path, header = T) %>% 
+    select(-c(chromosome, 
+              ref_strand, 
+              chromosome_start, 
+              left_jump_snp_ref, 
+              right_jump_snp_ref, 
+              left_flank_ref, 
+              right_flank_ref)
+       )
+  primate_df <- left_join(primate_df, human_coords, by = 'read_name') %>% 
+  mutate(right_jump_snp_ref = ifelse(strand == ref_strand, 
+  chromosome_start + jump_snp_pos_in_read, 
+  chromosome_start + as.integer(read_length) - jump_snp_pos_in_read)
+  ) %>% 
+   distinct(read_name, .keep_all = T)
+
+primate_df <- primate_df %>% 
+  mutate(chromosome = factor(temp_chromosome, 
+                            levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+
+before <- ref_pos_co_events(primate_df, 2)[[1]]
+after <- ref_pos_co_events(primate_df, 2)[[2]]
+  
+primate_df <- primate_df %>% 
+  mutate(left_jump_snp_ref = right_jump_snp_ref - (jump_snp - previous_snp),
+          right_flank_ref = after + right_jump_snp_ref,
+          left_flank_ref = right_jump_snp_ref - before
+           )
+
+primate_df_flank_bed <- primate_df %>% 
+    arrange(chromosome, left_flank_ref) %>% 
+    select(chromosome, left_flank_ref, right_flank_ref)
+  
+  primate_df_jump_bed <- primate_df %>% 
+    arrange(chromosome, left_jump_snp_ref) %>% 
+    select(chromosome, left_jump_snp_ref, right_jump_snp_ref)
+  
+  
+  
+  if(individual== 'lt39' | individual== 'bt15' | individual== 'mt5'){
+    file_path_jump = sprintf('../unclassified_reads/co/%s/%s_co_jump_snps_human.bed',
+                           individual,
+                           individual)
+    file_path_flank = sprintf('../unclassified_reads/co/%s/%s_co_flanking_snps_human.bed',
+                           individual,
+                           individual)
+  } else{
+    file_path_jump = sprintf('../classified_reads/co/%s/%s_co_germline_jump_snps_human.bed',
+                           individual,
+                           individual)
+    file_path_flank = sprintf('../classified_reads/co/%s/%s_co_germline_flanking_snps_human.bed',
+                           individual,
+                           individual)
+  }
+  write.table(primate_df_jump_bed,
+            file = sprintf(file_path_jump, 
+                           individual, 
+                           individual), 
+            sep = '\t', 
+            col.names = FALSE, 
+            row.names = FALSE, 
+            quote = FALSE) 
+
+  write.table(primate_df_flank_bed, 
+            file = sprintf(file_path_flank, 
+                           individual, 
+                           individual), 
+            sep = '\t', 
+            col.names = FALSE, 
+            row.names = FALSE, 
+            quote = FALSE)
+}
+```
+
+# GCV
+```{r, message=FALSE, warning=FALSE}
+chromosome_levels <- c(paste0('chr', 1:22), "chrX", "chrY")
+for(individual in names(sample_dict)){
+  human_coords <- read.table(sprintf('../%s/%s/raw_calls/%s_read_locations_human.bed',
+                             sample_dict[[individual]],
+                             individual,
+                             individual)
+                             ) %>% 
+    rename(read_name = V1, 
+         temp_strand = V2, 
+         temp_chromosome = V3, 
+         chromosome_start = V4) %>% 
+    mutate(ref_strand = ifelse(temp_strand == 0, 
+                             '+', 
+                             '-')
+         ) %>% 
+    select(-temp_strand) %>% 
+    filter(temp_chromosome != '*')
+  
+  if(individual== 'lt39' | individual== 'bt15' | individual== 'mt5'){
+    file_path = sprintf('../unclassified_reads/gcv/%s/%s_gcv.tsv',
+                           individual,
+                           individual)
+  } else{
+    file_path = sprintf('../classified_reads/gcv/%s/%s_gcv_germline.tsv',
+                           individual,
+                           individual)
+  }
+  primate_df <- read.table(file_path, header = T) %>% 
+    select(-c(chromosome, 
+              ref_strand, 
+              chromosome_start, 
+              left_jump_snp_ref, 
+              right_jump_snp_ref)
+       )
+  
+  primate_df <- left_join(primate_df, human_coords, by = 'read_name') %>% 
+  mutate(right_jump_snp_ref = ifelse(strand == ref_strand, 
+  chromosome_start + jump_snp_pos_in_read, 
+  chromosome_start + as.integer(read_length) - jump_snp_pos_in_read),
+  left_jump_snp_ref = right_jump_snp_ref - (jump_snp - previous_snp)
+  ) %>% 
+    distinct(read_name, .keep_all = T) %>% 
+    drop_na(temp_chromosome)
+
+primate_df <- primate_df %>% 
+  mutate(chromosome = factor(temp_chromosome, 
+                            levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+
+    primate_df_jump_bed <- primate_df %>% 
+    arrange(chromosome, left_jump_snp_ref) %>% 
+    select(chromosome, left_jump_snp_ref, right_jump_snp_ref)
+  
+  
+  
+  if(individual== 'lt39' | individual== 'bt15' | individual== 'mt5'){
+    file_path_jump = sprintf('../unclassified_reads/gcv/%s/%s_gcv_jump_snps_human.bed',
+                           individual,
+                           individual)
+  } else{
+    file_path_jump = sprintf('../classified_reads/gcv/%s/%s_gcv_germline_jump_snps_human.bed',
+                           individual,
+                           individual)
+  }
+  write.table(primate_df_jump_bed,
+            file = sprintf(file_path_jump, 
+                           individual, 
+                           individual), 
+            sep = '\t', 
+            col.names = FALSE, 
+            row.names = FALSE, 
+            quote = FALSE) 
+}
+```
+

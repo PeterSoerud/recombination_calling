@@ -1,0 +1,57 @@
+---
+title: "coverage"
+output: pdf_document
+date: "2023-05-10"
+---
+```{r, message = FALSE}
+library(tidyverse)
+```
+
+# Specify sample
+```{r}
+species = 'human'
+individual = 'ht20'
+```
+
+# Read file
+```{r}
+coverage <- read.table(sprintf('../%s/%s/raw_coverage/%s_coverage_noclips.bed', 
+                               species, 
+                               individual, 
+                               individual), 
+                       header = F) %>%
+  rename(contig = V1, 
+         coverage = V2, 
+         count = V3) 
+```
+
+# Summarise table
+```{r}
+coverage %>% 
+  group_by(coverage) %>% 
+  summarise(coverage_count = sum(count)) %>% 
+  mutate(total_count =coverage_count*as.numeric(coverage)) %>% 
+  summarise(sum(total_count) / sum(coverage_count))
+```
+
+# Get thresholds
+```{r}
+total_coverage <- coverage %>% 
+  group_by(coverage) %>% 
+  summarise(total_count = sum(count))
+total_coverage <- total_coverage %>% 
+  mutate(fraction = total_coverage$total_count / sum(total_coverage$total_count), 
+         normalized_cumsum = cumsum(fraction)
+         )
+
+min(which((total_coverage$normalized_cumsum) > 0.997))
+min(which((total_coverage$normalized_cumsum) > 0.05))
+```
+
+# Plot distribution
+```{r}
+ggplot(coverage) +
+  geom_col(aes(x = coverage, y = count)) +
+  xlim(0,60)
+```
+

@@ -1,0 +1,589 @@
+# Load packages
+```{r, message=FALSE}
+library(tidyverse)
+library(hablar)
+```
+
+# Sample dict
+```{r}
+sample_dict <- c('bt15' = 'baboon',
+                 'lt39' = 'gibbon',
+                 'mt5' = 'macaque')
+```
+
+# Functions
+```{r}
+#############################
+# REF POSITIONS FOR CO EVENTS
+#############################
+ref_pos_co_events <- function(data, number_of_flanking_snps){
+  before_vector <- c()
+  after_vector <- c()
+  for(i in seq(nrow(data))){
+    jump_snp = data$jump_snp[i]
+    snps = as.numeric(strsplit(data$snp_pos_in_read[i], ',')[[1]])
+    jump_snp_index = which(jump_snp == snps)
+    last_index = length(snps)
+    second_flanking_before = snps[jump_snp_index - number_of_flanking_snps]
+    second_flanking_after = snps[jump_snp_index + number_of_flanking_snps - 1]
+    dist_to_flanking_before = jump_snp - second_flanking_before
+    dist_to_flanking_after = second_flanking_after - jump_snp
+    before_vector <- c(before_vector, dist_to_flanking_before)
+    after_vector <- c(after_vector, dist_to_flanking_after)
+}
+return(list(before_vector, after_vector))
+}
+```
+## First and last SNP
+```{r}
+first_last_snps <- function(data){
+  first_snp_vector <- c()
+  last_snp_vector <- c()
+  for(i in seq(nrow(data))){
+    jump_snp = data$jump_snp[i]
+    snps = as.numeric(strsplit(data$snp_pos_in_read[i], ',')[[1]])
+    jump_snp_index = which(jump_snp == snps)
+    dist_to_first_snp <- snps[jump_snp_index] - snps[1]
+    dist_to_last_snp <- snps[length(snps)] - snps[jump_snp_index]
+    first_snp_vector <- c(first_snp_vector, dist_to_first_snp)
+    last_snp_vector <- c(last_snp_vector, dist_to_last_snp)
+  }
+  return(list(first_snp_vector, last_snp_vector))
+}
+```
+
+# Reference genomes
+```{r}
+# Guinea Baboon
+chromosome_levels <- c(paste0('chr', 1:20), "chrX")
+baboon_reference_coordinates <- read.table('../baboon/reference_coordinates/papio_papio.fa.fai') %>% 
+  select(V1, V2) %>% 
+  rename(encoded_chromosome = V1,
+         chromosome_length = V2) %>%
+  mutate(temp_chromosome = sprintf('chr%s', as.numeric(substr(encoded_chromosome, 7,8)) - 17)
+         ) %>% 
+  select(-encoded_chromosome)
+
+baboon_reference_coordinates$temp_chromosome[21] = 'chrX'
+baboon_reference_coordinates <- baboon_reference_coordinates %>%
+  mutate(chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>% 
+  select(-temp_chromosome) %>% 
+  relocate(chromosome, .before = chromosome_length)
+
+# Lar Gibbon
+chromosome_levels <- c(paste0('chr', 1:22))
+gibbon_reference_coordinates <- read.table('../gibbon/reference_coordinates/hylobates_pileatus.fa.fai') %>% 
+  select(V1, V2) %>% 
+  rename(encoded_chromosome = V1,
+         chromosome_length = V2) %>%
+  mutate(temp_chromosome = sprintf('chr%s', as.numeric(substr(encoded_chromosome, 7,8)) - 15)
+         ) %>% 
+  select(-encoded_chromosome)
+
+gibbon_reference_coordinates <- gibbon_reference_coordinates %>%
+  mutate(chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>% 
+  select(-temp_chromosome) %>% 
+  relocate(chromosome, .before = chromosome_length)
+
+# Pig-tailed macaque
+chromosome_levels <- c(paste0('chr', 1:20), "chrX", 'chrY')
+macaque_reference_coordinates <- read.table('../macaque/reference_coordinates/macaca_nemestrina.fa.fai') %>% 
+  select(V1, V2) %>% 
+  rename(encoded_chromosome = V1,
+         chromosome_length = V2) %>%
+  mutate(temp_chromosome = sprintf('chr%s', as.numeric(substr(encoded_chromosome, 7,8)) - 30)
+         ) %>% 
+  select(-encoded_chromosome) %>% 
+   slice(1:22)
+
+macaque_reference_coordinates$temp_chromosome[21] = 'chrX'
+macaque_reference_coordinates$temp_chromosome[22] = 'chrY'
+
+macaque_reference_coordinates <- macaque_reference_coordinates %>%
+  mutate(chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>% 
+  select(-temp_chromosome) %>% 
+  relocate(chromosome, .before = chromosome_length)
+
+```
+
+
+# CO
+```{r, message=FALSE, warning=FALSE}
+for(individual in names(sample_dict)){
+  individual_crossing_overs <- read.table(sprintf("../%s/%s/output_files/co/%s_crossing_over.txt", 
+                                                  sample_dict[[individual]], 
+                                                  individual, 
+                                                  individual), 
+                                          header = T) %>% 
+  rename(temp_chromosome = chromosome )
+
+    
+  
+  individual_with_flanking <- read.table(sprintf('../%s/%s/output_files/all_calls/%s_all_calls.tsv', 
+                                                 sample_dict[[individual]], 
+                                                 individual, 
+                                                 individual), 
+                                         header =  T)
+  
+  before <- ref_pos_co_events(individual_with_flanking, 2)[[1]]
+  after <- ref_pos_co_events(individual_with_flanking, 2)[[2]]
+  
+  individual_with_flanking <- individual_with_flanking %>% 
+    mutate(left_jump_snp_ref = right_jump_snp_ref - (jump_snp - previous_snp),
+           right_flank_ref = after + right_jump_snp_ref,
+           left_flank_ref = right_jump_snp_ref - before
+           )
+  
+  individual_crossing_over_post_curation <- read.csv(
+    sprintf('../%s/%s/output_files/co/%s_crossing_over_post_curation.csv', 
+                                                               sample_dict[[individual]], 
+                                                               individual, 
+                                                               individual)
+    ) %>% 
+  dplyr::select(c('CO_event', 'Approved'))
+  individual_crossing_over_post_curation <- individual_crossing_over_post_curation[-c(nrow(individual_crossing_overs):nrow(individual_crossing_over_post_curation)+1),]
+  
+  if(sample_dict[[individual]] == 'baboon'){
+    chromosome_levels <- c(paste0('chr', 1:20), "chrX")
+    individual_crossing_overs <- individual_crossing_overs %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_co <- individual_crossing_overs[individual_crossing_over_post_curation$Approved == 'y',]
+    individual_final_co <- left_join(individual_final_co, 
+                                     baboon_reference_coordinates, 
+                                     by = 'chromosome') 
+  }
+  
+  if(sample_dict[[individual]] == 'gibbon'){
+    chromosome_levels <- c(paste0('chr', 1:22))
+    individual_crossing_overs <- individual_crossing_overs %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>%
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_co <- individual_crossing_overs[individual_crossing_over_post_curation$Approved == 'y',]
+    individual_final_co <- left_join(individual_final_co, 
+                                     gibbon_reference_coordinates, 
+                                     by = 'chromosome') 
+
+  }
+  
+  if(sample_dict[[individual]] == 'macaque'){
+    chromosome_levels <- c(paste0('chr', 1:22), "chrX", 'chrY')
+    individual_crossing_overs <- individual_crossing_overs %>%
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_co <- individual_crossing_overs[individual_crossing_over_post_curation$Approved == 'y',]
+    individual_final_co <- left_join(individual_final_co, 
+                                     macaque_reference_coordinates, 
+                                     by = 'chromosome')
+  }
+
+  individual_ref_flanking_bed <- inner_join(individual_final_co, individual_with_flanking) %>% 
+    arrange(chromosome, left_flank_ref) %>% 
+    select(chromosome, left_flank_ref, right_flank_ref)
+  
+  individual_ref_jump_snp_bed <- inner_join(individual_final_co, 
+                                            individual_with_flanking) %>% 
+    arrange(chromosome, left_jump_snp_ref) %>% 
+    select(chromosome, left_jump_snp_ref, right_jump_snp_ref)
+  
+  individual_final_co_with_flanks <- inner_join(individual_final_co, 
+                                                individual_with_flanking) %>% 
+    arrange(chromosome, left_flank_ref)
+  
+   dir.create(sprintf('../unclassified_reads/co/%s',
+                     individual)
+             )
+  
+  write.table(individual_final_co_with_flanks, 
+              file = sprintf('../unclassified_reads/co/%s/%s_co.tsv', 
+                             individual, 
+                             individual), 
+              sep = '\t', 
+              col.names = TRUE, 
+              row.names = FALSE, 
+              quote = FALSE) 
+  
+  write.table(individual_ref_flanking_bed, 
+              file = sprintf('../unclassified_reads/co/%s/%s_co_flanking_snps.bed', 
+                             individual, 
+                             individual), 
+              sep = '\t', 
+              col.names = FALSE, 
+              row.names = FALSE, 
+              quote = FALSE) 
+  
+  write.table(individual_ref_jump_snp_bed, 
+              file = sprintf('../unclassified_reads/co/%s/%s_co_jump_snps.bed', 
+                             individual, 
+                             individual), 
+              sep = '\t', 
+              col.names = FALSE, 
+              row.names = FALSE, 
+              quote = FALSE) 
+} 
+```
+
+# GCV
+```{r, message=FALSE, warning=FALSE}
+for(individual in names(sample_dict)){
+  
+  individual_gene_conversions <- read.table(
+    sprintf("../%s/%s/output_files/gcv/%s_gene_conversion.txt", 
+            sample_dict[[individual]], 
+            individual, 
+            individual),
+    header = T) %>% 
+  rename(temp_chromosome = chromosome ) 
+  
+  individual_gene_conversions$right_jump_snp_ref <- individual_gene_conversions$right_jump_snp_ref + 
+    (individual_gene_conversions$next_snp - 
+       individual_gene_conversions$jump_snp)  
+
+  
+  individual_with_flanking <- read.table(
+    sprintf('../%s/%s/output_files/all_calls/%s_all_calls.tsv', 
+            sample_dict[[individual]], 
+            individual, 
+            individual), 
+    header =  T) %>% 
+    mutate(left_jump_snp_ref = right_jump_snp_ref - (jump_snp - previous_snp)
+           )
+  
+  individual_with_flanking$right_jump_snp_ref <- individual_with_flanking$right_jump_snp_ref + 
+    (individual_with_flanking$next_snp - individual_with_flanking$jump_snp)  
+  
+
+  individual_gene_conversion_post_curation <- read.csv(sprintf('../%s/%s/output_files/gcv/%s_gene_conversion_post_curation.csv', 
+                                                               sample_dict[[individual]], 
+                                                               individual, 
+                                                               individual)) %>% 
+    dplyr::select(c('GC_event', 'Approved'))
+  individual_gene_conversion_post_curation <- individual_gene_conversion_post_curation[-c(nrow(individual_gene_conversions):nrow(individual_gene_conversion_post_curation)+1),]
+  
+  if(sample_dict[[individual]] == 'baboon'){
+    chromosome_levels <- c(paste0('chr', 1:20), "chrX")
+    individual_gene_conversions <- individual_gene_conversions %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+   
+    individual_final_gc <- individual_gene_conversions[individual_gene_conversion_post_curation$Approved == 'y',]
+    individual_final_gc <- left_join(individual_final_gc, 
+                                     baboon_reference_coordinates, 
+                                     by = 'chromosome') 
+  }
+  
+  if(sample_dict[[individual]] == 'gibbon'){
+    chromosome_levels <- c(paste0('chr', 1:22))
+    individual_gene_conversions <- individual_gene_conversions %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+   
+    individual_final_gc <- individual_gene_conversions[individual_gene_conversion_post_curation$Approved == 'y',]
+    individual_final_gc <- left_join(individual_final_gc, 
+                                     gibbon_reference_coordinates, 
+                                     by = 'chromosome') 
+  }
+  
+  if(sample_dict[[individual]] == 'macaque'){
+    chromosome_levels <- c(paste0('chr', 1:22), "chrX", 'chrY')
+    individual_gene_conversions <- individual_gene_conversions %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+        levels = chromosome_levels)
+        ) %>% 
+      select(-temp_chromosome)
+    
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_gc <- individual_gene_conversions[individual_gene_conversion_post_curation$Approved == 'y',]
+    individual_final_gc <- left_join(individual_final_gc, 
+                                     macaque_reference_coordinates, 
+                                     by = 'chromosome') 
+  }
+  
+  individual_ref_jump_snp_bed <- inner_join(individual_final_gc, 
+                                            individual_with_flanking) %>% 
+    arrange(chromosome, left_jump_snp_ref) %>% 
+    select(chromosome, left_jump_snp_ref, right_jump_snp_ref)
+    
+  individual_final_gc_with_flanks <- inner_join(individual_final_gc, 
+                                                individual_with_flanking) %>% 
+    arrange(chromosome, left_jump_snp_ref)
+  
+   dir.create(sprintf('../unclassified_reads/gcv/%s',
+                     individual)
+             )
+  
+  write.table(individual_final_gc_with_flanks, 
+              file = sprintf('../unclassified_reads/gcv/%s/%s_gcv.tsv', 
+                             individual, 
+                             individual), 
+              sep = '\t', 
+              col.names = TRUE, 
+              row.names = FALSE, 
+              quote = FALSE )
+  
+  write.table(individual_ref_jump_snp_bed, 
+              file = sprintf('../unclassified_reads/gcv/%s/%s_gcv_jump_snps.bed', 
+                             individual, 
+                             individual), 
+              sep = '\t', 
+              col.names = FALSE, 
+              row.names = FALSE, 
+              quote = FALSE) 
+} 
+```
+
+
+
+
+# Boundary
+```{r, message=FALSE, warning=FALSE}
+for(individual in names(sample_dict)){
+  individual_boundaries <- read.table(sprintf("../%s/%s/output_files/boundary/%s_boundary.txt", 
+                                              sample_dict[[individual]],
+                                              individual, 
+                                              individual), 
+                                      header = T) %>% 
+  rename(temp_chromosome = chromosome ) 
+  
+  individual_with_flanking <- read.table(
+    sprintf('../%s/%s/output_files/all_calls/%s_all_calls.tsv', 
+            sample_dict[[individual]], 
+            individual, 
+            individual),
+    header =  T) %>% 
+    mutate(left_jump_snp_ref = right_jump_snp_ref - (jump_snp - previous_snp),
+           right_flank_ref = right_jump_snp_ref + 1500 ,
+           left_flank_ref = right_jump_snp_ref - 1500
+           )
+
+  individual_boundary_post_curation <- read.csv(
+    sprintf('../%s/%s/output_files/boundary/%s_boundary_post_curation.csv', 
+                                                               sample_dict[[individual]], 
+                                                               individual, 
+                                                               individual)) %>% 
+    dplyr::select(c('boundary_event', 'Approved'))
+  individual_boundary_post_curation <- individual_boundary_post_curation[-c(nrow(individual_boundaries):nrow(individual_boundary_post_curation)+1),]
+  
+  if(sample_dict[[individual]] == 'baboon'){
+    chromosome_levels <- c(paste0('chr', 1:20), "chrX")
+    individual_boundaries <- individual_boundaries %>%
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_boundary <- individual_boundaries[individual_boundary_post_curation$Approved == 'y',]
+    individual_final_boundary <- left_join(individual_final_boundary, 
+                                           baboon_reference_coordinates, 
+                                           by = 'chromosome') 
+  }
+  
+  if(sample_dict[[individual]] == 'gibbon'){
+    chromosome_levels <- c(paste0('chr', 1:22))
+    individual_boundaries <- individual_boundaries %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)) %>%
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_boundary <- individual_boundaries[individual_boundary_post_curation$Approved == 'y',]
+    individual_final_boundary <- left_join(individual_final_boundary, 
+                                           gibbon_reference_coordinates, 
+                                           by = 'chromosome') 
+
+  }
+  
+  if(sample_dict[[individual]] == 'macaque'){
+    chromosome_levels <- c(paste0('chr', 1:22), "chrX", 'chrY')
+    individual_boundaries <- individual_boundaries %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_boundary <- individual_boundaries[individual_boundary_post_curation$Approved == 'y',]
+    individual_final_boundary <- left_join(individual_final_boundary, 
+                                           macaque_reference_coordinates, 
+                                           by = 'chromosome') 
+  
+  }
+  
+individual_ref_1500bp_interval_bed <- inner_join(individual_final_boundary, 
+                                                 individual_with_flanking) %>% 
+  arrange(chromosome, left_flank_ref) %>% 
+  select(chromosome, left_flank_ref, right_flank_ref)
+
+individual_final_boundary_with_flanks <- inner_join(individual_final_boundary, 
+                                                    individual_with_flanking) %>%
+  arrange(chromosome, left_jump_snp_ref)
+  
+  dir.create(sprintf('../unclassified_reads/boundary/%s',
+                     individual)
+             )
+  
+  write.table(individual_final_boundary_with_flanks, 
+              file = sprintf('../unclassified_reads/boundary/%s/%s_boundary.tsv',
+                             individual,
+                             individual), 
+              sep = '\t', 
+              col.names = TRUE, 
+              row.names = FALSE, 
+              quote = FALSE ) 
+  
+  write.table(individual_ref_1500bp_interval_bed, 
+              file = sprintf('../unclassified_reads/boundary/%s/%s_ref_1500bp_interval_boundary.bed',
+                             individual,
+                             individual), 
+              sep = '\t',
+              col.names = FALSE, 
+              row.names = FALSE, 
+              quote = FALSE ) 
+} 
+```
+
+
+# Complex 
+```{r, message=FALSE, warning=FALSE}
+for(individual in names(sample_dict)){
+  individual_complex <- read.table(
+    sprintf("../%s/%s/output_files/complex/%s_complex.txt", 
+            sample_dict[[individual]], 
+            individual, 
+            individual),
+    header = T) %>% 
+  rename(temp_chromosome = chromosome ) 
+  
+  individual_with_flanking <- read.table(
+    sprintf('../%s/%s/output_files/all_calls/%s_all_calls.tsv',
+            sample_dict[[individual]],
+            individual, 
+            individual), 
+    header =  T) 
+  
+  dist_to_first_snp <- first_last_snps(individual_with_flanking)[[1]]
+  dist_to_last_snp <- first_last_snps(individual_with_flanking)[[2]]
+  individual_with_flanking <- individual_with_flanking %>% 
+    mutate(first_snp_ref = right_jump_snp_ref - dist_to_first_snp,
+           last_snp_ref = right_jump_snp_ref + dist_to_last_snp)
+  
+  individual_complex_post_curation <- read.csv(sprintf('../%s/%s/output_files/complex/%s_complex_post_curation.csv', 
+                                                               sample_dict[[individual]], 
+                                                               individual, 
+                                                               individual)) %>% 
+    dplyr::select(c('complex_event', 'Approved'))
+  individual_complex_post_curation <- individual_complex_post_curation[-c(nrow(individual_complex):nrow(individual_complex_post_curation)+1),]
+  
+  
+  
+  if(sample_dict[[individual]] == 'baboon'){
+    chromosome_levels <- c(paste0('chr', 1:20), "chrX")
+    individual_complex <- individual_complex %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_complex <- individual_complex[individual_complex_post_curation$Approved == 'y',]
+    individual_final_complex <- left_join(individual_final_complex, 
+                                          baboon_reference_coordinates, 
+                                          by = 'chromosome') 
+  }
+  
+  if(sample_dict[[individual]] == 'gibbon'){
+    chromosome_levels <- c(paste0('chr', 1:22))
+    individual_complex <- individual_complex %>% 
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)
+             ) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_complex <- individual_complex[individual_complex_post_curation$Approved == 'y',]
+    individual_final_complex <- left_join(individual_final_complex, 
+                                          gibbon_reference_coordinates, 
+                                          by = 'chromosome') 
+  }
+  
+  if(sample_dict[[individual]] == 'macaque'){
+    chromosome_levels <- c(paste0('chr', 1:22), "chrX", 'chrY')
+    individual_complex <- individual_complex %>%
+      mutate(chromosome = factor(temp_chromosome, 
+                                 levels = chromosome_levels)) %>% 
+      select(-temp_chromosome)
+    individual_with_flanking$chromosome  <- factor(individual_with_flanking$chromosome, 
+                                                   levels = chromosome_levels) 
+    
+    individual_final_complex <- individual_complex[individual_complex_post_curation$Approved == 'y',]
+    individual_final_complex <- left_join(individual_final_complex, 
+                                          macaque_reference_coordinates, 
+                                          by = 'chromosome')
+  }
+  
+  
+  individual_final_complex_first_last_snp <- inner_join(individual_final_complex, 
+                                                        individual_with_flanking) %>%
+    arrange(chromosome, first_snp_ref)
+  individual_final_complex_first_last_snp_bed <- inner_join(individual_final_complex, 
+                                                            individual_with_flanking) %>% 
+  arrange(chromosome, first_snp_ref) %>% 
+  select(chromosome, first_snp_ref, last_snp_ref)
+
+  dir.create(sprintf('../unclassified_reads/complex/%s',
+                     individual)
+             )
+  write.table(individual_final_complex_first_last_snp, 
+              file = sprintf('../unclassified_reads/complex/%s/%s_complex.tsv', 
+                                                                      individual, 
+                                                                      individual), 
+              sep = '\t', 
+              col.names = TRUE, 
+              row.names = FALSE, 
+              quote = FALSE) 
+  write.table(individual_final_complex_first_last_snp_bed, 
+              file = sprintf('../unclassified_reads/complex/%s/%s_jump_snps_complex.bed', 
+                             individual, 
+                             individual), 
+            sep = '\t', 
+            col.names = FALSE, 
+            row.names = FALSE, 
+            quote = FALSE) 
+} 
+```

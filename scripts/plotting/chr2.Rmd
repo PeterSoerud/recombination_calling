@@ -1,0 +1,210 @@
+# Load packages
+```{r, message=FALSE}
+library(tidyverse)
+library(hablar)
+library(ggplotify)
+library(karyoploteR)
+library(cowplot)
+```
+
+# Human testis
+```{r}
+chromosome_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
+human_reference_coordinates <- read_tsv('../human/reference_coordinates/t2t.tsv') %>% dplyr::slice(1:24) %>% 
+  dplyr::select(`Chromosome name`, `Seq length`) %>% 
+  mutate(chromosome = factor(sprintf('chr%s', `Chromosome name`), levels = chromosome_levels)) %>% 
+  dplyr::rename(chromosome_length = `Seq length`) %>% 
+  dplyr::select(-`Chromosome name`)
+
+hs25_gcv <- read.table('../sperm_reads/gcv/hs25/hs25_gcv.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+hs35_gcv <- read.table('../sperm_reads/gcv/hs35/hs35_gcv.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+hs50_gcv <- read.table('../sperm_reads/gcv/hs50/hs50_gcv.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht20_gcv <- read.table('../classified_reads/gcv/ht20/ht20_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht45_gcv <- read.table('../classified_reads/gcv/ht45/ht45_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht50_gcv <- read.table('../classified_reads/gcv/ht50/ht50_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht50_gcv <- read.table('../classified_reads/gcv/ht50/ht50_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht55_gcv <- read.table('../classified_reads/gcv/ht55/ht55_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht60_gcv <- read.table('../classified_reads/gcv/ht60/ht60_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht65_gcv <- read.table('../classified_reads/gcv/ht65/ht65_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+
+human_gcv <- rbind(hs25_gcv, hs35_gcv, hs50_gcv, ht20_gcv, ht45_gcv, ht50_gcv, ht55_gcv, ht60_gcv, ht65_gcv)
+human_gcv$chromosome <- factor(human_gcv$chromosome, levels = chromosome_levels)
+
+
+hs25_co <- read.table('../sperm_reads/co/hs25/hs25_co.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+hs35_co <- read.table('../sperm_reads/co/hs35/hs35_co.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+hs50_co <- read.table('../sperm_reads/co/hs50/hs50_co.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht20_co <- read.table('../classified_reads/co/ht20/ht20_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht45_co <- read.table('../classified_reads/co/ht45/ht45_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht50_co <- read.table('../classified_reads/co/ht50/ht50_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht50_co <- read.table('../classified_reads/co/ht50/ht50_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht55_co <- read.table('../classified_reads/co/ht55/ht55_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht60_co <- read.table('../classified_reads/co/ht60/ht60_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ht65_co <- read.table('../classified_reads/co/ht65/ht65_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+
+human_co <- rbind(hs25_co, hs35_co, hs50_co, ht20_co, ht45_co, ht50_co, ht55_co, ht60_co, ht65_co)
+human_co$chromosome <- factor(human_co$chromosome, levels = chromosome_levels)
+
+human_gcv_chr2 <- human_gcv %>% filter(chromosome == 'chr2')
+human_co_chr2 <- human_co %>% filter(chromosome == 'chr2')
+```
+```{r}
+human_t2t <- data.frame(chromosome = human_reference_coordinates$chromosome, 
+                      start = 0, 
+                      end = human_reference_coordinates$chromosome_length)
+human_t2t_genome <- toGRanges(human_t2t)
+
+# CO and GCV
+gr_co <- with(human_co_chr2, GRanges(chromosome, 
+                                 IRanges(human_co_chr2$right_jump_snp_ref, 
+                                         human_co_chr2$right_jump_snp_ref),
+                                 y = 0.01))
+gr_gcv <- with(human_gcv_chr2, GRanges(chromosome, 
+                                   IRanges(human_gcv_chr2$right_jump_snp_ref, 
+                                           human_gcv_chr2$right_jump_snp_ref), 
+                                   y = -0.535))
+
+# Create karyotype plot
+pdf('human_chr2.pdf')
+pp <- getDefaultPlotParams(plot.type = 1)
+kp_human <- plotKaryotype(genome = human_t2t_genome, 
+                    chromosomes = c('chr2'),
+                    plot.type = 1)
+
+kpPoints(karyoplot = kp_human, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9)
+
+kpPoints(karyoplot = kp_human, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 0.9)
+
+dev.off()
+```
+
+# Chimp testis
+```{r}
+chromosome_levels <- c('chr1', 'chr2A', 'chr2B', paste0("chr", 3:22), "chrX", "chrY")
+chimp_reference_coordinates <- read.table('../chimp/reference_coordinates/mPanTro3.pri.cur.20231122.fasta.fai') %>%
+      rowwise() %>% 
+      mutate(temp_chromosome = sprintf('chr%s', toupper(strsplit(V1, 'hsa')[[1]][2])),
+         chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>%
+  dplyr::select(chromosome, V2) %>% 
+  dplyr::rename(chromosome_length = V2) 
+
+ct15_gcv <- read.table('../classified_reads/gcv/ct15/ct15_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ct22_gcv <- read.table('../classified_reads/gcv/ct22/ct22_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ct28_gcv <- read.table('../classified_reads/gcv/ct28/ct28_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ct32_gcv <- read.table('../classified_reads/gcv/ct32/ct32_gcv_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+
+chimp_gcv <- rbind(ct15_gcv, ct22_gcv, ct28_gcv, ct32_gcv)
+chimp_gcv$chromosome <- factor(chimp_gcv$chromosome, levels = chromosome_levels)
+
+
+ct15_co <- read.table('../classified_reads/co/ct15/ct15_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ct22_co <- read.table('../classified_reads/co/ct22/ct22_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ct28_co <- read.table('../classified_reads/co/ct28/ct28_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+ct32_co <- read.table('../classified_reads/co/ct32/ct32_co_germline.tsv', header = T) %>% dplyr::select(chromosome, right_jump_snp_ref)
+
+chimp_co <- rbind(ct15_co, ct22_co, ct28_co, ct32_co)
+chimp_co$chromosome <- factor(chimp_co$chromosome, levels = chromosome_levels)
+
+chimp_gcv_chr2 <- chimp_gcv %>% filter(chromosome == 'chr2A' | chromosome == 'chr2B')
+chimp_co_chr2 <- chimp_co %>% filter(chromosome == 'chr2A' | chromosome == 'chr2B')
+```
+
+# Combined plot
+```{r}
+combined_t2t <- data.frame(chromosome = c('chr2', 'chr2A', 'chr2B'), 
+                      start = 0, 
+                      end = c(242696752, 122853238, 144476839))
+combined_t2t_genome <- toGRanges(combined_t2t)
+
+# CO and GCV
+combined_co = rbind(chimp_co_chr2, human_co_chr2)
+combined_gcv = rbind(chimp_gcv_chr2, human_gcv_chr2)
+gr_co <- with(combined_co, GRanges(chromosome, 
+                                 IRanges(combined_co$right_jump_snp_ref, 
+                                         combined_co$right_jump_snp_ref),
+                                 y = 0.03))
+gr_gcv <- with(combined_gcv, GRanges(chromosome, 
+                                   IRanges(combined_gcv$right_jump_snp_ref, 
+                                           combined_gcv$right_jump_snp_ref), 
+                                   y = -0.567))
+
+# Create karyotype plot
+#pdf('combined_chr2.pdf')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 0
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+p1 <- as.ggplot(expression(kp_combined <- plotKaryotype(genome = combined_t2t_genome, 
+                    chromosomes = c('chr2','chr2A', 'chr2B'),
+                    plot.params = pp,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_combined, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_combined, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+kpRect(kp_combined, 
+       chr="chr2", 
+       x0=92333543, 
+       x1=94673023, 
+       y0=0, 
+       y1=1, 
+       col="#da2c23", 
+       data.panel="ideogram", 
+       border=NA),
+
+kpRect(kp_combined, 
+       chr="chr2A", 
+       x0=28498122,
+       x1=35197942,
+       y0=0, 
+       y1=1, 
+       col="#da2c23", 
+       data.panel="ideogram", 
+       border=NA),
+
+kpRect(kp_combined, 
+       chr="chr2B", 
+       x0=29591677, 
+       x1=34034016, 
+       y0=0, 
+       y1=1, 
+       col="#da2c23", 
+       data.panel="ideogram", 
+       border=NA)
+
+)
+)
+#dev.off()
+p <- plot_grid(p1, p1, ncol = 2)
+
+p <- plot_grid(p1, ncol = 1)
+
+title <- ggdraw() + 
+  draw_label('Comparison of human chromosome 2 and chimp chromsome 2A and 2B') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -60, l = 0))
+
+pdf('../plots/chr2.pdf', width = 24, height = 5)
+plot_grid(title, p, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+

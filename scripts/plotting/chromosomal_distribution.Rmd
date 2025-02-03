@@ -1,0 +1,1638 @@
+# Load packages
+```{r, message=FALSE}
+library(tidyverse)
+library(MESS)
+library(karyoploteR)
+library(cowplot)
+library(ggplotify)
+```
+
+# Human sperm
+```{r}
+sample = 'hs35'
+paper_name = 'HS35'
+tissue = 'sperm'
+
+chromosome_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
+human_reference_coordinates <- read_tsv('../human/reference_coordinates/t2t.tsv') %>% dplyr::slice(1:24) %>% 
+  dplyr::select(`Chromosome name`, `Seq length`) %>% 
+  mutate(chromosome = factor(sprintf('chr%s', `Chromosome name`), levels = chromosome_levels)) %>% 
+  dplyr::rename(chromosome_length = `Seq length`) %>% 
+  dplyr::select(-`Chromosome name`)
+                                                                                                                                                                      
+sample_gcv <- read.table(sprintf('../sperm_reads/gcv/%s/%s_gcv.tsv', sample, sample), header = T) 
+sample_gcv$chromosome <- factor(sample_gcv$chromosome, levels = chromosome_levels) 
+
+sample_co <- read.table(sprintf('../sperm_reads/co/%s/%s_co.tsv', sample, sample), header = T) 
+sample_co$chromosome <- factor(sample_co$chromosome, levels = chromosome_levels)
+
+sample_boundary <- read.table(sprintf('../sperm_reads/boundary/%s/%s_boundary.tsv', sample, sample), header = T) 
+sample_boundary$chromosome <- factor(sample_boundary$chromosome, levels = chromosome_levels)
+
+sample_complex <- read.table(sprintf('../sperm_reads/complex/%s/%s_complex.tsv', sample, sample), header = T)
+sample_complex$chromosome <- factor(sample_complex$chromosome, levels = chromosome_levels)
+```
+
+# Human testis
+```{r}
+sample = 'ht65'
+paper_name = 'HT65'
+tissue = 'testis'
+
+chromosome_levels <- c(paste0("chr", 1:22), "chrX", "chrY")
+human_reference_coordinates <- read_tsv('../human/reference_coordinates/t2t.tsv') %>% dplyr::slice(1:24) %>% 
+  dplyr::select(`Chromosome name`, `Seq length`) %>% 
+  mutate(chromosome = factor(sprintf('chr%s', `Chromosome name`), levels = chromosome_levels)) %>% 
+  dplyr::rename(chromosome_length = `Seq length`) %>% 
+  dplyr::select(-`Chromosome name`)
+
+sample_gcv <- read.table(sprintf('../classified_reads/gcv/%s/%s_gcv_germline.tsv', sample, sample), header = T) %>%           
+  filter(chromosome != 'chrX', chromosome != 'chrY')
+sample_gcv$chromosome <- factor(sample_gcv$chromosome, levels = chromosome_levels) 
+
+sample_co <- read.table(sprintf('../classified_reads/co/%s/%s_co_germline.tsv', sample, sample), header = T) %>%           
+   filter(chromosome != 'chrX', chromosome != 'chrY')
+sample_co$chromosome <- factor(sample_co$chromosome, levels = chromosome_levels)
+
+sample_boundary <- read.table(sprintf('../classified_reads/boundary/%s/%s_boundary_germline.tsv', sample, sample), header = T) %>%      
+   filter(chromosome != 'chrX', chromosome != 'chrY')
+sample_boundary$chromosome <- factor(sample_boundary$chromosome, levels = chromosome_levels)
+
+sample_complex <- read.table(sprintf('../classified_reads/complex/%s/%s_complex_germline.tsv', sample, sample), header = T) %>% 
+   filter(chromosome != 'chrX', chromosome != 'chrY')
+sample_complex$chromosome <- factor(sample_complex$chromosome, levels = chromosome_levels)
+```
+
+# Chimp testis
+```{r}
+sample = 'ct15'
+paper_name = 'CT15' 
+tissue = 'testis'
+
+chromosome_levels <- c('chr1', 'chr2A', 'chr2B', paste0("chr", 3:22), "chrX", "chrY")
+chimp_reference_coordinates <- read.table('../chimp/reference_coordinates/mPanTro3.pri.cur.20231122.fasta.fai') %>%
+      rowwise() %>% 
+      mutate(temp_chromosome = sprintf('chr%s', toupper(strsplit(V1, 'hsa')[[1]][2])),
+         chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>%
+  dplyr::select(chromosome, V2) %>% 
+  dplyr::rename(chromosome_length = V2) %>%
+  arrange(by = chromosome)
+                                                                                                                                                          
+
+sample_gcv <- read.table(sprintf('../classified_reads/gcv/%s/%s_gcv_germline.tsv', sample, sample), header = T)
+sample_gcv$chromosome <- factor(sample_gcv$chromosome, levels = chromosome_levels) 
+
+sample_co <- read.table(sprintf('../classified_reads/co/%s/%s_co_germline.tsv', sample, sample), header = T)           
+sample_co$chromosome <- factor(sample_co$chromosome, levels = chromosome_levels)
+
+sample_boundary <- read.table(sprintf('../classified_reads/boundary/%s/%s_boundary_germline.tsv', sample, sample), header = T)    
+sample_boundary$chromosome <- factor(sample_boundary$chromosome, levels = chromosome_levels)
+
+sample_complex <- read.table(sprintf('../classified_reads/complex/%s/%s_complex_germline.tsv', sample, sample), header = T) 
+sample_complex$chromosome <- factor(sample_complex$chromosome, levels = chromosome_levels)
+
+```
+
+# Gorilla testis
+```{r}
+sample = 'gt43'
+paper_name = 'GT43' 
+tissue = 'testis'
+
+chromosome_levels <- c('chr1', 'chr2A', 'chr2B', paste0("chr", 3:22), "chrX", "chrY")
+gorilla_reference_coordinates <- read.table('../gorilla/reference_coordinates/mGorGor1.pri.cur.fasta.fai') %>%
+      rowwise() %>% 
+      mutate(temp_chromosome = sprintf('chr%s', toupper(strsplit(V1, 'hsa')[[1]][2])),
+         chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>%
+  dplyr::select(chromosome, V2) %>% 
+  dplyr::rename(chromosome_length = V2) 
+  
+gorilla_reference_coordinates$chromosome[4] = 'chr5'
+gorilla_reference_coordinates$chromosome[19] = 'chr17'
+
+gorilla_reference_coordinates <- arrange(gorilla_reference_coordinates, by = chromosome)
+
+                                                                                                                                          
+sample_gcv <- read.table(sprintf('../classified_reads/gcv/%s/%s_gcv_germline.tsv', sample, sample), header = T)         
+sample_gcv$chromosome <- factor(sample_gcv$chromosome, levels = chromosome_levels) 
+
+sample_co <- read.table(sprintf('../classified_reads/co/%s/%s_co_germline.tsv', sample, sample), header = T)         
+sample_co$chromosome <- factor(sample_co$chromosome, levels = chromosome_levels)
+
+sample_boundary <- read.table(sprintf('../classified_reads/boundary/%s/%s_boundary_germline.tsv', sample, sample), header = T)         
+sample_boundary$chromosome <- factor(sample_boundary$chromosome, levels = chromosome_levels)
+
+sample_complex <- read.table(sprintf('../classified_reads/complex/%s/%s_complex_germline.tsv', sample, sample), header = T)           
+sample_complex$chromosome <- factor(sample_complex$chromosome, levels = chromosome_levels)
+```
+
+# Gibbon testis
+```{r}
+sample = 'lt39'
+paper_name = 'LT39'
+tissue = 'testis'
+
+chromosome_levels <- c(paste0('chr', 1:22))
+gibbon_reference_coordinates <- read.table('../gibbon/reference_coordinates/hylobates_pileatus.fa.fai') %>% 
+  select(V1, V2) %>% 
+  dplyr::rename(encoded_chromosome = V1,
+         chromosome_length = V2) %>%
+  mutate(temp_chromosome = sprintf('chr%s', as.numeric(substr(encoded_chromosome, 7,8)) - 15)
+         ) %>% 
+  select(-encoded_chromosome)
+
+gibbon_reference_coordinates <- gibbon_reference_coordinates %>%
+  mutate(chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>% 
+  select(-temp_chromosome) %>% 
+  relocate(chromosome, .before = chromosome_length)
+                                                                                                                                                          
+sample_gcv <- read.table(sprintf('../unclassified_reads/gcv/%s/%s_gcv.tsv', sample, sample), header = T) %>% 
+  drop_na()
+sample_gcv$chromosome <- factor(sample_gcv$chromosome, levels = chromosome_levels) 
+
+sample_co <- read.table(sprintf('../unclassified_reads/co/%s/%s_co.tsv', sample, sample), header = T) %>% 
+  drop_na()
+sample_co$chromosome <- factor(sample_co$chromosome, levels = chromosome_levels)
+
+sample_boundary <- read.table(sprintf('../unclassified_reads/boundary/%s/%s_boundary.tsv', sample, sample), header = T) 
+sample_boundary$chromosome <- factor(sample_boundary$chromosome, levels = chromosome_levels)
+
+sample_complex <- read.table(sprintf('../unclassified_reads/complex/%s/%s_complex.tsv', sample, sample), header = T)
+sample_complex$chromosome <- factor(sample_complex$chromosome, levels = chromosome_levels)
+```
+
+# Baboon testis
+```{r}
+sample = 'bt15'
+paper_name = 'BT15'
+tissue = 'testis'
+
+chromosome_levels <- c(paste0('chr', 1:20), "chrX")
+baboon_reference_coordinates <- read.table('../baboon/reference_coordinates/papio_papio.fa.fai') %>% 
+  select(V1, V2) %>% 
+  dplyr::rename(encoded_chromosome = V1,
+         chromosome_length = V2) %>%
+  mutate(temp_chromosome = sprintf('chr%s', as.numeric(substr(encoded_chromosome, 7,8)) - 17)
+         ) %>% 
+  select(-encoded_chromosome)
+
+baboon_reference_coordinates$temp_chromosome[21] = 'chrX'
+baboon_reference_coordinates <- baboon_reference_coordinates %>%
+  mutate(chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>% 
+  select(-temp_chromosome) %>% 
+  relocate(chromosome, .before = chromosome_length)
+
+sample_gcv <- read.table(sprintf('../unclassified_reads/gcv/%s/%s_gcv.tsv', sample, sample), header = T) %>% 
+  drop_na()
+sample_gcv$chromosome <- factor(sample_gcv$chromosome, levels = chromosome_levels)  
+
+
+sample_co <- read.table(sprintf('../unclassified_reads/co/%s/%s_co.tsv', sample, sample), header = T) %>% 
+  drop_na()
+sample_co$chromosome <- factor(sample_co$chromosome, levels = chromosome_levels)
+
+sample_boundary <- read.table(sprintf('../unclassified_reads/boundary/%s/%s_boundary.tsv', sample, sample), header = T) %>% 
+  drop_na()
+sample_boundary$chromosome <- factor(sample_boundary$chromosome, levels = chromosome_levels)
+
+sample_complex <- read.table(sprintf('../unclassified_reads/complex/%s/%s_complex.tsv', sample, sample), header = T) %>% 
+  drop_na()
+sample_complex$chromosome <- factor(sample_complex$chromosome, levels = chromosome_levels)
+```
+
+# Macaque testis
+```{r}
+sample = 'mt5'
+paper_name = 'MT5'
+tissue = 'testis'
+
+chromosome_levels <- c(paste0('chr', 1:20), "chrX", 'chrY')
+macaque_reference_coordinates <- read.table('../macaque/reference_coordinates/macaca_nemestrina.fa.fai') %>% 
+  select(V1, V2) %>% 
+  dplyr::rename(encoded_chromosome = V1,
+         chromosome_length = V2) %>%
+  mutate(temp_chromosome = sprintf('chr%s', as.numeric(substr(encoded_chromosome, 7,8)) - 30)
+         ) %>% 
+  dplyr::select(-encoded_chromosome) %>% 
+   dplyr::slice(1:22)
+
+macaque_reference_coordinates$temp_chromosome[21] = 'chrX'
+macaque_reference_coordinates$temp_chromosome[22] = 'chrY'
+
+macaque_reference_coordinates <- macaque_reference_coordinates %>%
+  mutate(chromosome = factor(temp_chromosome, 
+                                   levels = chromosome_levels)
+         ) %>% 
+  select(-temp_chromosome) %>% 
+  relocate(chromosome, .before = chromosome_length)
+                                                                                                                                                          
+sample_gcv <- read.table(sprintf('../unclassified_reads/gcv/%s/%s_gcv.tsv', sample, sample), header = T) 
+sample_gcv$chromosome <- factor(sample_gcv$chromosome, levels = chromosome_levels) 
+
+sample_co <- read.table(sprintf('../unclassified_reads/co/%s/%s_co.tsv', sample, sample), header = T) 
+sample_co$chromosome <- factor(sample_co$chromosome, levels = chromosome_levels) 
+
+
+sample_boundary <- read.table(sprintf('../unclassified_reads/boundary/%s/%s_boundary.tsv', sample, sample), header = T)
+sample_boundary$chromosome <- factor(sample_boundary$chromosome, levels = chromosome_levels)
+
+sample_complex <- read.table(sprintf('../unclassified_reads/complex/%s/%s_complex.tsv', sample, sample), header = T) 
+sample_complex$chromosome <- factor(sample_complex$chromosome, levels = chromosome_levels)
+```
+
+
+# Spatial distribution human
+## CO and GCV
+```{r}
+t2t <- data.frame(chromosome = human_reference_coordinates$chromosome, start = 0, end = human_reference_coordinates$chromosome_length)
+t2t_genome <- toGRanges(t2t)
+
+gr_co <- with(sample_co, GRanges(chromosome, IRanges(sample_co$left_jump_snp_ref, 
+                                                     sample_co$left_jump_snp_ref), 
+                                 y = 0.069))
+gr_gcv <- with(sample_gcv, GRanges(chromosome, IRanges(sample_gcv$left_jump_snp_ref, 
+                                                       sample_gcv$left_jump_snp_ref), 
+                                   y = -0.624))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/co_and_gcv')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_12 <- plotKaryotype(genome = t2t_genome, 
+                    chromosomes = c(paste0("chr", 1:11)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_1_12, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_1_12, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+kpRect(kp_1_12, chr="chr1", x0=121796048, x1=126300487, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr2", x0=92333543, x1=94673023, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr3", x0=91738002, x1=96415026, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr4", x0=49705154, x1=55199795, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr5", x0=47039134, x1=49596625, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr6", x0=58286706, x1=61058390, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr7", x0=60414372, x1=63714499, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr8", x0=44215832, x1=46325080, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr9", x0=44951775, x1=47582595, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr10", x0=39633793, x1=41664589, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr11", x0=51035789, x1=54450838, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_13_y <- plotKaryotype(genome = t2t_genome, 
+                    chromosomes = c(paste0("chr", 12:22)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_13_y, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_13_y, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+kpRect(kp_13_y, chr="chr12", x0=34620838, x1=37202490, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr13", x0=15547593, x1=17498291, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr14", x0=10092112, x1=12708411, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr15", x0=16678794, x1=17694466, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr16", x0=35848286, x1=37829521, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr17", x0=23892419, x1=27486939, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr18", x0=15965699, x1=20933550, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr19", x0=25817676, x1=29768171, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr20", x0=26925852, x1=29099655, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr21", x0=10962853, x1=11306205, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr22", x0=12788180, x1=15711065, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("firebrick3", "steelblue", "grey40"), 
+       legend = c("CO", "GCV", 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name),size = 40) +
+  theme(plot.margin = margin(t = 0, r = 670, b = -110, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/co_and_gcv/%s.pdf', sample), width = 25, height = 15)
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Boundary
+
+```{r}
+t2t <- data.frame(chromosome = human_reference_coordinates$chromosome, start = 0, end = human_reference_coordinates$chromosome_length)
+t2t_genome <- toGRanges(t2t)
+
+gr_boundary <- with(sample_boundary, GRanges(chromosome, IRanges(sample_boundary$left_jump_snp_ref, 
+                                                     sample_boundary$left_jump_snp_ref), 
+                                 y = 0.069))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/boundary')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_12 <- plotKaryotype(genome = t2t_genome, 
+                    chromosomes = c(paste0("chr", 1:11)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_12, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_1_12, chr="chr1", x0=121796048, x1=126300487, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr2", x0=92333543, x1=94673023, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr3", x0=91738002, x1=96415026, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr4", x0=49705154, x1=55199795, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr5", x0=47039134, x1=49596625, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr6", x0=58286706, x1=61058390, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr7", x0=60414372, x1=63714499, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr8", x0=44215832, x1=46325080, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr9", x0=44951775, x1=47582595, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr10", x0=39633793, x1=41664589, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr11", x0=51035789, x1=54450838, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_13_y <- plotKaryotype(genome = t2t_genome, 
+                    chromosomes = c(paste0("chr", 12:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_13_y, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_13_y, chr="chr12", x0=34620838, x1=37202490, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr13", x0=15547593, x1=17498291, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr14", x0=10092112, x1=12708411, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr15", x0=16678794, x1=17694466, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr16", x0=35848286, x1=37829521, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr17", x0=23892419, x1=27486939, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr18", x0=15965699, x1=20933550, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr19", x0=25817676, x1=29768171, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr20", x0=26925852, x1=29099655, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr21", x0=10962853, x1=11306205, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr22", x0=12788180, x1=15711065, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue", "grey40"), 
+       legend = c('Boundary', 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/boundary/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+## Complex
+```{r}
+t2t <- data.frame(chromosome = human_reference_coordinates$chromosome, start = 0, end = human_reference_coordinates$chromosome_length)
+t2t_genome <- toGRanges(t2t)
+
+gr_complex <- with(sample_complex, GRanges(chromosome, IRanges(sample_complex$right_jump_snp_ref, 
+                                                     sample_complex$right_jump_snp_ref), 
+                                 y = 0.069))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/complex')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_12 <- plotKaryotype(genome = t2t_genome, 
+                    chromosomes = c(paste0("chr", 1:11)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_12, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_1_12, chr="chr1", x0=121796048, x1=126300487, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr2", x0=92333543, x1=94673023, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr3", x0=91738002, x1=96415026, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr4", x0=49705154, x1=55199795, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr5", x0=47039134, x1=49596625, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr6", x0=58286706, x1=61058390, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr7", x0=60414372, x1=63714499, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr8", x0=44215832, x1=46325080, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr9", x0=44951775, x1=47582595, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr10", x0=39633793, x1=41664589, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_12, chr="chr11", x0=51035789, x1=54450838, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_13_y <- plotKaryotype(genome = t2t_genome, 
+                    chromosomes = c(paste0("chr", 12:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_13_y, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_13_y, chr="chr12", x0=34620838, x1=37202490, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr13", x0=15547593, x1=17498291, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr14", x0=10092112, x1=12708411, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr15", x0=16678794, x1=17694466, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr16", x0=35848286, x1=37829521, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr17", x0=23892419, x1=27486939, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr18", x0=15965699, x1=20933550, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr19", x0=25817676, x1=29768171, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr20", x0=26925852, x1=29099655, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr21", x0=10962853, x1=11306205, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_13_y, chr="chr22", x0=12788180, x1=15711065, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue", "grey40"), 
+       legend = c("Complex", 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of complex events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/complex/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+
+# Spatial distribution chimp
+## CO and GCV
+```{r}
+chimp_t2t <- data.frame(chromosome = chimp_reference_coordinates$chromosome, start = 0, end = chimp_reference_coordinates$chromosome_length)
+chimp_t2t_genome <- toGRanges(chimp_t2t)
+
+gr_co <- with(sample_co, GRanges(chromosome, IRanges(sample_co$left_jump_snp_ref, 
+                                                     sample_co$left_jump_snp_ref), 
+                                 y = 0.069))
+gr_gcv <- with(sample_gcv, GRanges(chromosome, IRanges(sample_gcv$left_jump_snp_ref, 
+                                                       sample_gcv$left_jump_snp_ref), 
+                                   y = -0.624))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/co_and_gcv')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = chimp_t2t_genome, 
+                    chromosomes = c('chr1',"chr2A", "chr2B", paste0("chr", 3:10)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+kpRect(kp_1_10, chr="chr1", x0=101356245, x1=105077980, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2A", x0=28498122, x1=31279491, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2B", x0=29591677, x1=34034016, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr3", x0=94078194, x1=96885865, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr4", x0=78908623, x1=81373970, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr5", x0=64529204, x1=66788232, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr6", x0=63430557, x1=65466266, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr7", x0=66553442, x1=70510584, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr8", x0=52279751, x1=64018765, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr9", x0=53076097, x1=56260475, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr10", x0=52315186, x1=55072367, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = chimp_t2t_genome, 
+                    chromosomes = c(paste0("chr", 11:22)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+kpRect(kp_11_22, chr="chr11", x0=54277466, x1=56548438, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr12", x0=57133245, x1=60698619, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr13", x0=13301495, x1=17149626, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr14", x0=13227263, x1=17140979, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr15", x0=13813511, x1=20942929, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr16", x0=41035816, x1=48405791, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr17", x0=38843157, x1=44878540, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr18", x0=13561461, x1=17014382, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr19", x0=27214610, x1=35647163, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr20", x0=31187779, x1=34927140, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr21", x0=10091522, x1=14044947, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr22", x0=9946886, x1=18666657, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("firebrick3", "steelblue", "grey40"), 
+       legend = c("CO", "GCV", 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name), size = 40) +
+  theme(plot.margin = margin(t = 0, r = 670, b = -110, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/co_and_gcv/%s.pdf', sample), width = 25, height = 15)
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Boundary
+
+```{r}
+chimp_t2t <- data.frame(chromosome = chimp_reference_coordinates$chromosome, start = 0, end = chimp_reference_coordinates$chromosome_length)
+chimp_t2t_genome <- toGRanges(chimp_t2t)
+
+gr_boundary <- with(sample_boundary, GRanges(chromosome, IRanges(sample_boundary$left_jump_snp_ref, 
+                                                     sample_boundary$left_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/boundary')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = chimp_t2t_genome, 
+                    chromosomes = c('chr1',"chr2A", "chr2B", paste0("chr", 3:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_1_10, chr="chr1", x0=101356245, x1=105077980, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2A", x0=28498122, x1=31279491, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2B", x0=29591677, x1=34034016, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr3", x0=94078194, x1=96885865, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr4", x0=78908623, x1=81373970, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr5", x0=64529204, x1=66788232, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr6", x0=63430557, x1=65466266, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr7", x0=66553442, x1=70510584, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr8", x0=52279751, x1=64018765, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr9", x0=53076097, x1=56260475, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr10", x0=52315186, x1=55072367, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = chimp_t2t_genome, 
+                    chromosomes = c(paste0("chr", 11:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_11_22, chr="chr11", x0=54277466, x1=56548438, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr12", x0=57133245, x1=60698619, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr13", x0=13301495, x1=17149626, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr14", x0=13227263, x1=17140979, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr15", x0=13813511, x1=20942929, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr16", x0=41035816, x1=48405791, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr17", x0=38843157, x1=44878540, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr18", x0=13561461, x1=17014382, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr19", x0=27214610, x1=35647163, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr20", x0=31187779, x1=34927140, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr21", x0=10091522, x1=14044947, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr22", x0=9946886, x1=18666657, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue", "grey40"), 
+       legend = c("Boundary", 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of boundary events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/boundary/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+## Complex
+```{r}
+chimp_t2t <- data.frame(chromosome = chimp_reference_coordinates$chromosome, start = 0, end = chimp_reference_coordinates$chromosome_length)
+chimp_t2t_genome <- toGRanges(chimp_t2t)
+
+gr_complex <- with(sample_complex, GRanges(chromosome, IRanges(sample_complex$right_jump_snp_ref, 
+                                                     sample_complex$right_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/complex')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = chimp_t2t_genome, 
+                    chromosomes = c('chr1',"chr2A", "chr2B", paste0("chr", 3:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_1_10, chr="chr1", x0=101356245, x1=105077980, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2A", x0=28498122, x1=31279491, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2B", x0=29591677, x1=34034016, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr3", x0=94078194, x1=96885865, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr4", x0=78908623, x1=81373970, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr5", x0=64529204, x1=66788232, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr6", x0=63430557, x1=65466266, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr7", x0=66553442, x1=70510584, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr8", x0=52279751, x1=64018765, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr9", x0=53076097, x1=56260475, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr10", x0=52315186, x1=55072367, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = chimp_t2t_genome, 
+                    chromosomes = c(paste0("chr", 11:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_11_22, chr="chr11", x0=54277466, x1=56548438, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr12", x0=57133245, x1=60698619, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr13", x0=13301495, x1=17149626, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr14", x0=13227263, x1=17140979, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr15", x0=13813511, x1=20942929, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr16", x0=41035816, x1=48405791, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr17", x0=38843157, x1=44878540, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr18", x0=13561461, x1=17014382, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr19", x0=27214610, x1=35647163, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr20", x0=31187779, x1=34927140, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr21", x0=10091522, x1=14044947, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr22", x0=9946886, x1=18666657, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue", "grey40"), 
+       legend = c("Complex", 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of complex events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/complex/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+
+# Spatial distribution gorilla
+## CO and GCV
+```{r}
+gorilla_t2t <- data.frame(chromosome = gorilla_reference_coordinates$chromosome, start = 0, end = gorilla_reference_coordinates$chromosome_length)
+gorilla_t2t_genome <- toGRanges(gorilla_t2t)
+
+gr_co <- with(sample_co, GRanges(chromosome, IRanges(sample_co$left_jump_snp_ref, 
+                                                     sample_co$left_jump_snp_ref), 
+                                 y = 0.069))
+gr_gcv <- with(sample_gcv, GRanges(chromosome, IRanges(sample_gcv$left_jump_snp_ref, 
+                                                       sample_gcv$left_jump_snp_ref), 
+                                   y = -0.624))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/co_and_gcv')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = gorilla_t2t_genome, 
+                    chromosomes = c('chr1',"chr2A", "chr2B", paste0("chr", 3:10)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+kpRect(kp_1_10, chr="chr1", x0=108411326, x1=116094087, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2A", x0=27324657, x1=33102952, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2B", x0=29591677, x1=33508003, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr3", x0=101286829, x1=104730571, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr4", x0=74791210, x1=81912936, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr5", x0=71532157, x1=78693864, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr6", x0=68403140, x1=80734440, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr7", x0=66346464, x1=74209125, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr8", x0=74645548, x1=82825075, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr9", x0=18139065, x1=25016912, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr10", x0=73335518, x1=79748609, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = gorilla_t2t_genome, 
+                    chromosomes = c(paste0("chr", 11:22)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+kpRect(kp_11_22, chr="chr11", x0=56445558, x1=64020136, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr12", x0=63664186, x1=66782243, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr13", x0=26870200, x1=34210267, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr14", x0=37990961, x1=47622300, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr15", x0=16725121, x1=19805012, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr16", x0=69917738, x1=75406458, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr17", x0=56517180, x1=65144943, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr18", x0=23527442, x1=35704805, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr19", x0=30826891, x1=38091474, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr20", x0=36406177, x1=41679034, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr21", x0=10095507, x1=15121199, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr22", x0=10473016, x1=14819748, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("firebrick3", "steelblue", "grey40"), 
+       legend = c("CO", "GCV", 'Centromere'),
+       bty = 'n')
+)
+)
+
+
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name), size = 40) +
+  theme(plot.margin = margin(t = 0, r = 670, b = -110, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/co_and_gcv/%s.pdf', sample), width = 25, height = 15)
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Boundary
+
+```{r}
+gorilla_t2t <- data.frame(chromosome = gorilla_reference_coordinates$chromosome, start = 0, end = gorilla_reference_coordinates$chromosome_length)
+gorilla_t2t_genome <- toGRanges(gorilla_t2t)
+
+gr_boundary <- with(sample_boundary, GRanges(chromosome, IRanges(sample_boundary$left_jump_snp_ref, 
+                                                     sample_boundary$left_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/boundary')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = gorilla_t2t_genome, 
+                    chromosomes = c('chr1',"chr2A", "chr2B", paste0("chr", 3:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_1_10, chr="chr1", x0=108411326, x1=116094087, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2A", x0=27324657, x1=33102952, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2B", x0=29591677, x1=33508003, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr3", x0=101286829, x1=104730571, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr4", x0=74791210, x1=81912936, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr5", x0=71532157, x1=78693864, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr6", x0=68403140, x1=80734440, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr7", x0=66346464, x1=74209125, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr8", x0=74645548, x1=82825075, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr9", x0=18139065, x1=25016912, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr10", x0=73335518, x1=79748609, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = gorilla_t2t_genome, 
+                    chromosomes = c(paste0("chr", 11:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_11_22, chr="chr11", x0=56445558, x1=64020136, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr12", x0=63664186, x1=66782243, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr13", x0=26870200, x1=34210267, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr14", x0=37990961, x1=47622300, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr15", x0=16725121, x1=19805012, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr16", x0=69917738, x1=75406458, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr17", x0=56517180, x1=65144943, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr18", x0=23527442, x1=35704805, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr19", x0=30826891, x1=38091474, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr20", x0=36406177, x1=41679034, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr21", x0=10095507, x1=15121199, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr22", x0=10473016, x1=14819748, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue", "grey40"), 
+       legend = c("Boundary", 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name), size = 40) +
+  theme(plot.margin = margin(t = 0, r = 670, b = -110, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/co_and_gcv/%s.pdf', sample), width = 25, height = 15)
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+## Complex
+```{r}
+gorilla_t2t <- data.frame(chromosome = gorilla_reference_coordinates$chromosome, start = 0, end = gorilla_reference_coordinates$chromosome_length)
+gorilla_t2t_genome <- toGRanges(gorilla_t2t)
+
+gr_complex <- with(sample_complex, GRanges(chromosome, IRanges(sample_complex$right_jump_snp_ref, 
+                                                     sample_complex$right_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/complex')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = gorilla_t2t_genome, 
+                    chromosomes = c('chr1',"chr2A", "chr2B", paste0("chr", 3:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_1_10, chr="chr1", x0=108411326, x1=116094087, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2A", x0=27324657, x1=33102952, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr2B", x0=29591677, x1=33508003, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr3", x0=101286829, x1=104730571, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr4", x0=74791210, x1=81912936, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr5", x0=71532157, x1=78693864, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr6", x0=68403140, x1=80734440, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr7", x0=66346464, x1=74209125, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr8", x0=74645548, x1=82825075, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr9", x0=18139065, x1=25016912, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_1_10, chr="chr10", x0=73335518, x1=79748609, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = gorilla_t2t_genome, 
+                    chromosomes = c(paste0("chr", 11:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+kpRect(kp_11_22, chr="chr11", x0=56445558, x1=64020136, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr12", x0=63664186, x1=66782243, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr13", x0=26870200, x1=34210267, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr14", x0=37990961, x1=47622300, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr15", x0=16725121, x1=19805012, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr16", x0=69917738, x1=75406458, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr17", x0=56517180, x1=65144943, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr18", x0=23527442, x1=35704805, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr19", x0=30826891, x1=38091474, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr20", x0=36406177, x1=41679034, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr21", x0=10095507, x1=15121199, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+kpRect(kp_11_22, chr="chr22", x0=10473016, x1=14819748, y0=0.044, y1=0.946, col="grey40", data.panel="ideogram", border=NA),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue", "grey40"), 
+       legend = c("Complex", 'Centromere'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of complex events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/complex/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+# Spatial distribtion gibbon
+## CO and GCV
+```{r}
+hylo_pile <- data.frame(chromosome = gibbon_reference_coordinates$chromosome, start = 0, end = gibbon_reference_coordinates$chromosome_length)
+hylo_pile_genome <- toGRanges(hylo_pile)
+
+gr_co <- with(sample_co, GRanges(chromosome, IRanges(sample_co$left_jump_snp_ref, 
+                                                     sample_co$left_jump_snp_ref), 
+                                 y = 0.069))
+gr_gcv <- with(sample_gcv, GRanges(chromosome, IRanges(sample_gcv$left_jump_snp_ref, 
+                                                       sample_gcv$left_jump_snp_ref), 
+                                   y = -0.624))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/co_and_gcv')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = hylo_pile_genome, 
+                    chromosomes = c(paste0("chr", 1:11)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = hylo_pile_genome, 
+                    chromosomes = c(paste0("chr", 12:22)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+legend(x = 0.8,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("firebrick3", "steelblue"), 
+       legend = c("CO", "GCV"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name), size = 40) +
+  theme(plot.margin = margin(t = 0, r = 670, b = -110, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/co_and_gcv/%s.pdf', sample), width = 25, height = 15)
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Boundary
+
+```{r}
+hylo_pile <- data.frame(chromosome = gibbon_reference_coordinates$chromosome, start = 0, end = gibbon_reference_coordinates$chromosome_length)
+hylo_pile_genome <- toGRanges(hylo_pile)
+
+gr_boundary <- with(sample_boundary, GRanges(chromosome, IRanges(sample_boundary$left_jump_snp_ref, 
+                                                     sample_boundary$left_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/boundary')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = hylo_pile_genome, 
+                    chromosomes = c(paste0("chr", 1:11)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = hylo_pile_genome, 
+                    chromosomes = c(paste0("chr", 12:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue"), 
+       legend = c('Boundary'),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of boundary events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/boundary/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Complex
+```{r}
+hylo_pile <- data.frame(chromosome = gibbon_reference_coordinates$chromosome, start = 0, end = gibbon_reference_coordinates$chromosome_length)
+hylo_pile_genome <- toGRanges(hylo_pile)
+
+gr_complex <- with(sample_complex, GRanges(chromosome, IRanges(sample_complex$right_jump_snp_ref, 
+                                                     sample_complex$right_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/complex')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = hylo_pile_genome, 
+                    chromosomes = c(paste0("chr", 1:11)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = hylo_pile_genome, 
+                    chromosomes = c(paste0("chr", 12:22)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue"), 
+       legend = c("Complex"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of complex events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/complex/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+# Spatial distribtion baboon
+## CO and GCV
+```{r}
+papio_papio <- data.frame(chromosome = baboon_reference_coordinates$chromosome, start = 0, end = baboon_reference_coordinates$chromosome_length)
+papio_papio_genome <- toGRanges(papio_papio)
+
+gr_co <- with(sample_co, GRanges(chromosome, IRanges(sample_co$left_jump_snp_ref, 
+                                                     sample_co$left_jump_snp_ref), 
+                                 y = 0.069))
+gr_gcv <- with(sample_gcv, GRanges(chromosome, IRanges(sample_gcv$left_jump_snp_ref, 
+                                                       sample_gcv$left_jump_snp_ref), 
+                                   y = -0.624))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/co_and_gcv')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = papio_papio_genome, 
+                    chromosomes = c(paste0("chr", 1:10)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = papio_papio_genome, 
+                    chromosomes = c(paste0("chr", 11:20)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("firebrick3", "steelblue"), 
+       legend = c("CO", "GCV"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name), size = 40) +
+  theme(plot.margin = margin(t = 0, r = 670, b = -110, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/co_and_gcv/%s.pdf', sample), width = 25, height = 15)
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Boundary
+
+```{r}
+papio_papio <- data.frame(chromosome = baboon_reference_coordinates$chromosome, start = 0, end = baboon_reference_coordinates$chromosome_length)
+papio_papio_genome <- toGRanges(papio_papio)
+
+gr_boundary <- with(sample_boundary, GRanges(chromosome, IRanges(sample_boundary$left_jump_snp_ref, 
+                                                     sample_boundary$left_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/boundary')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = papio_papio_genome, 
+                    chromosomes = c(paste0("chr", 1:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = papio_papio_genome, 
+                    chromosomes = c(paste0("chr", 11:20)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue"), 
+       legend = c("Boundary"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of boundary events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/boundary/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Complex
+```{r}
+papio_papio <- data.frame(chromosome = baboon_reference_coordinates$chromosome, start = 0, end = baboon_reference_coordinates$chromosome_length)
+papio_papio_genome <- toGRanges(papio_papio)
+
+gr_complex <- with(sample_complex, GRanges(chromosome, IRanges(sample_complex$right_jump_snp_ref, 
+                                                     sample_complex$right_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/complex')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = papio_papio_genome, 
+                    chromosomes = c(paste0("chr", 1:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = papio_papio_genome, 
+                    chromosomes = c(paste0("chr", 11:20)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue"), 
+       legend = c("Complex"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of complex events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/complex/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+# Spatial distribtion macaque
+## CO and GCV
+```{r}
+maca_nem <- data.frame(chromosome = macaque_reference_coordinates$chromosome, start = 0, end = macaque_reference_coordinates$chromosome_length)
+maca_nem_genome <- toGRanges(maca_nem)
+
+gr_co <- with(sample_co, GRanges(chromosome, IRanges(sample_co$left_jump_snp_ref, 
+                                                     sample_co$left_jump_snp_ref), 
+                                 y = 0.069))
+gr_gcv <- with(sample_gcv, GRanges(chromosome, IRanges(sample_gcv$left_jump_snp_ref, 
+                                                       sample_gcv$left_jump_snp_ref), 
+                                   y = -0.624))
+
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/co_and_gcv')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = maca_nem_genome, 
+                    chromosomes = c(paste0("chr", 1:10)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = maca_nem_genome, 
+                    chromosomes = c(paste0("chr", 11:20)), 
+                    plot.params = pp, 
+                    plot.type = 1,
+                    cex = 2.3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_co, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 3),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_gcv, 
+         pch = '|', 
+         col = 'firebrick3',
+         cex = 3),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("firebrick3", "steelblue"), 
+       legend = c("CO", "GCV"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of COs and GCVs in %s sample %s', tissue, paper_name), size = 40) +
+  theme(plot.margin = margin(t = 0, r = 670, b = -110, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/co_and_gcv/%s.pdf', sample), width = 25, height = 15)
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Boundary
+
+```{r}
+maca_nem <- data.frame(chromosome = macaque_reference_coordinates$chromosome, start = 0, end = macaque_reference_coordinates$chromosome_length)
+maca_nem_genome <- toGRanges(maca_nem)
+
+gr_boundary <- with(sample_boundary, GRanges(chromosome, IRanges(sample_boundary$left_jump_snp_ref, 
+                                                     sample_boundary$left_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/boundary')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = maca_nem_genome, 
+                    chromosomes = c(paste0("chr", 1:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = maca_nem_genome, 
+                    chromosomes = c(paste0("chr", 11:20)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_boundary, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue"), 
+       legend = c("Boundary"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of boundary events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/boundary/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```
+
+## Complex
+```{r}
+maca_nem <- data.frame(chromosome = macaque_reference_coordinates$chromosome, start = 0, end = macaque_reference_coordinates$chromosome_length)
+maca_nem_genome <- toGRanges(maca_nem)
+
+gr_complex <- with(sample_complex, GRanges(chromosome, IRanges(sample_complex$right_jump_snp_ref, 
+                                                     sample_complex$right_jump_snp_ref), 
+                                 y = 0.069))
+# Create karyotype plot
+dir.create('../plots/chromosomal_distribution/complex')
+pp <- getDefaultPlotParams(plot.type = 1)
+pp$topmargin <- 205
+pp$rightmargin <- 0.07
+pp$leftmargin <- 0.14
+
+p1 <- as.ggplot(expression(kp_1_10 <- plotKaryotype(genome = maca_nem_genome, 
+                    chromosomes = c(paste0("chr", 1:10)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_1_10, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9)
+)
+)
+
+p2 <- as.ggplot(expression(kp_11_22 <- plotKaryotype(genome = maca_nem_genome, 
+                    chromosomes = c(paste0("chr", 11:20)), 
+                    plot.params = pp, 
+                    plot.type = 1),
+
+kpPoints(karyoplot = kp_11_22, 
+         data = gr_complex, 
+         pch = '|', 
+         col = 'steelblue', 
+         cex = 0.9),
+
+legend(x = 0.65,
+       y = 0.1,
+       cex = 1.8, 
+       fill = c("steelblue"), 
+       legend = c("Complex"),
+       bty = 'n')
+)
+)
+grid <- plot_grid(p1, p2, ncol = 2)
+
+title <- ggdraw() + 
+  draw_label(sprintf('Spatial distribution of complex events in %s sample %s', tissue, paper_name), fontface='bold') +
+  theme(plot.margin = margin(t = 0, r = 0, b = -30, l = 0))
+
+pdf(sprintf('../plots/chromosomal_distribution/complex/%s.pdf', sample))
+plot_grid(title, grid, ncol=1, rel_heights = c(0.01, 1)) 
+dev.off()
+```

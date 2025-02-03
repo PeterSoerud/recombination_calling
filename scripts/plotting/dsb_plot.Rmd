@@ -1,0 +1,58 @@
+# Load packages
+```{r, message=FALSE}
+library(tidyverse)
+```
+
+# Read data
+```{r}
+co_dsb_fraction <- read.table('../dsb_map/overlaps/co_overlaps_t2t.bed') %>% 
+  rename(sample = V1,
+         interval = V2,
+         overlap_count = V3,
+         total_calls = V4) %>% 
+  mutate(fraction = overlap_count / total_calls,
+         rec_type = 'co',
+         rec_type_interval = paste(interval, rec_type, sep = '_'))
+
+gcv_dsb_fraction <- read.table('../dsb_map/overlaps/gcv_overlaps_t2t.bed') %>% 
+  rename(sample = V1,
+         interval = V2,
+         overlap_count = V3,
+         total_calls = V4) %>% 
+   mutate(fraction = overlap_count / total_calls,
+         rec_type = 'gcv',
+         rec_type_interval = paste(interval, rec_type, sep = '_'))
+
+combined_dsb_fraction <- rbind(co_dsb_fraction, gcv_dsb_fraction)
+
+combined_dsb_fraction <- combined_dsb_fraction %>% 
+  mutate(enrichment = fraction / 0.0183) # Fraction of genome within DSB hotspots for AA allele
+```
+
+# Plot distribution
+```{r}
+  ggplot(combined_dsb_fraction) +
+    geom_col(aes(x = sample, 
+                 y = fraction, 
+                 fill = rec_type_interval),
+             position = 'dodge') +
+    scale_x_discrete(limits = unique(combined_dsb_fraction$sample),
+      labels = unique(combined_dsb_fraction$sample)
+      ) + 
+  scale_fill_manual(labels = c('Flanking markers of CO', 'Jump SNVs of CO', 'Jump SNVs of GCV'),
+                    values = c("steelblue",'#191970', 'firebrick3')) + 
+  xlab('Sample') + 
+  ggtitle('Enrichment of CO and GCV events\nthat overlap with DSB intervals') + 
+  theme_minimal(base_size = 16) +
+  theme(legend.position = c(0.73, 0.85),
+        legend.title = element_blank()) +
+  scale_y_continuous(
+    name = "Fraction",
+    sec.axis = sec_axis( trans=~./0.0183, name="Enrichment")
+    ) + 
+  theme(axis.text.x = element_text(angle = 45, hjust = 0.9, vjust = 1.1),
+        axis.title.y.right = element_text(angle = 90))
+
+ggsave('../plots/dsb_overlap.pdf', height = 190, width = 190, unit = 'mm')
+```
+
