@@ -58,11 +58,13 @@ The reference genomes used in this study are listed below:
   - [Papio papio](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_028645565.1/)
   - [Macaca nemestrina](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_043159975.1/)
     
-To convert the contig positions of the called events to positions in a reference genome, we map the reads containing recombination events using *pbmm2*. We then use *samtools* to extract the relavant information from the mapping. The code is shown below:
+To convert the contig positions of the called events to positions in the corresponding reference genome, we map the reads containing recombination events using *pbmm2*. We then use *samtools* to extract the relavant information from the mapping. The code is shown below:
 ```
 pbmm2 align reference_genome.fa fastq_in bam_out --preset HIFI --sort -j 12 -J 4 -m 8G
 samtools view bam_in | awk -v OFS='\t' '{{print $1,$2,$3,$4}}' > bed_out
 ```
+Since we also want to know all events in human coordinates, we also map all non-human samples against the human reference genome (T2T-CHM13v2.0)
+
 ### Classify reads with events
 We are capable of classifying a significant amount of the reads from each individual, and to add the classification to the reads with a called recombination event, we simply intersect the two data tables. However, to join in bash we need to sort the tables by read name:
 ```
@@ -72,7 +74,13 @@ join -1 5 -2 1 --header recombination_table_sorted.bed classification_table_sort
 ```
 
 ### Process recombination events
-At this stage of the analysis, we have a set of candidate recombination events for each individual. However, we cannot classify the reads for the Guinea baboon, Lar Gibbon, and pig-tailed macaque because of their evolutionary distance to humans. Therefore we run `/scripts/process_calls/split_raw_calls_unclassified.Rmd` for these three species, and we run `/scripts/process_calls/split_raw_calls_classified_sperm.Rmd` for the rest of the samples. 
+At this stage of the analysis, we have a set of candidate recombination events for each individual. However, we cannot classify the reads for the Guinea baboon, Lar Gibbon, and pig-tailed macaque because of their evolutionary distance to humans. Therefore we run `/scripts/process_calls/split_raw_calls_unclassified.Rmd` for these three species, and we run `/scripts/process_calls/split_raw_calls_classified_sperm.Rmd` for the rest of the samples. The script outputs four tables, one for each of the recombination types introduced in the paper. 
+
+### Manual curation
+For each sample we manual curate each of its four recombination classes. The results of the curation can be found in `/tables/manual_curation`.
+
+### Final files
+Lastly, we run `/scripts/process_calls/split_raw_calls_classified_sperm.Rmd` and `/scripts/process_calls/split_raw_calls_classified_sperm.Rmd`, which uses the files from the manual curation to filter the recombination events. The output files from these scripts constitute the basis of all further analyses. 
 
 
 
