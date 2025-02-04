@@ -63,9 +63,16 @@ To convert the contig positions of the called events to positions in a reference
 pbmm2 align reference_genome.fa fastq_in bam_out --preset HIFI --sort -j 12 -J 4 -m 8G
 samtools view bam_in | awk -v OFS='\t' '{{print $1,$2,$3,$4}}' > bed_out
 ```
+### Classify reads with events
+We are capable of classifying a significant amount of the reads from each individual, and to add the classification to the reads with a called recombination event, we simply intersect the two data tables. However, to join in bash we need to sort the tables by read name:
+```
+awk 'NR==1{print; next} {print | "sort -k5,5"}' recombination_table.bed > recombination_table_sorted.bed
+awk 'NR==1{print; next} {print | "sort -k1,1"}' classification_table.tsv > classification_table_sorted.tsv
+join -1 5 -2 1 --header recombination_table_sorted.bed classification_table_sorted.tsv > recombination_plus_methylation.tsv
+```
 
 ### Process recombination events
-
+At this stage of the analysis, we have a set of candidate recombination events for each individual. However, we cannot classify the reads for the Guinea baboon, Lar Gibbon, and pig-tailed macaque because of their evolutionary distance to humans. Therefore we run `/scripts/process_calls/split_raw_calls_unclassified.Rmd` for these three species, and we run `/scripts/process_calls/split_raw_calls_classified_sperm.Rmd` for the rest of the samples. 
 
 
 
