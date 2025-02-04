@@ -49,18 +49,20 @@ We then run `scripts/calling/recombination.py`, which imports functions from `sc
   - A tab-separated file containing the positions of runs of homozygosity (>1e5 bps between SNVs)
   - A fastq file containing alle the reads in which an event was called
 
+### Reference genomes
+The reference genomes used in this study are listed below:
+  - [Homo sapiens](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_009914755.1/)
+  - [Pan troglodytes](https://genomeark.s3.amazonaws.com/index.html?prefix=species/Pan_troglodytes/mPanTro3/assembly_curated/)
+  - [Gorilla gorilla](https://genomeark.s3.amazonaws.com/index.html?prefix=species/Gorilla_gorilla/mGorGor1/assembly_curated/)
+  - [Hylobates pileatus](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_021498465.1/) (Sequenced gibbon is a Hylobates lar)
+  - [Papio papio](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_028645565.1/)
+  - [Macaca nemestrina](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_043159975.1/)
+    
 To get the reference positions of the called events, we map the reads containing recombination events using pbmm2. We then use samtools to extract the relavant information from the mapping. The code is shown below:
 ```
 pbmm2 align reference_genome.fa fastq_in bam_out --preset HIFI --sort -j 12 -J 4 -m 8G
 samtools view bam_in | awk -v OFS='\t' '{{print $1,$2,$3,$4}}' > bed_out
 ```
-The reference genomes used in this study are listed below:
-  - [Homo sapiens](https://www.ncbi.nlm.nih.gov/datasets/genome/GCF_009914755.1/)
-  - [Pan troglodytes](https://genomeark.s3.amazonaws.com/index.html?prefix=species/Pan_troglodytes/mPanTro3/assembly_curated/):
-  - [Gorilla gorilla](https://genomeark.s3.amazonaws.com/index.html?prefix=species/Gorilla_gorilla/mGorGor1/assembly_curated/):
-  - [Hylobates pileatus](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_021498465.1/) (Sequenced gibbon is a Hylobates lar):
-  - [Papio papio](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_028645565.1/)
-  - [Macaca nemestrina](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_043159975.1/):
 
 ### Process recombination events
 
