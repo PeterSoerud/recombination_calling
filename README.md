@@ -22,7 +22,7 @@ From raw PacBio HiFi reads, we build a de novo assembly using the software [hifi
 ```
 hifiasm -o output.asm -t 32 input_reads.fq.gz
 ```
-The program outputs the assembly in a `.gfa` file, and to convert the file into fasta format, we run the code below. To complete the assembly we also build an index file using samtools.
+The program outputs the assembly in a `.gfa` file, and to convert the file into fasta format, we run the code below. To complete the assembly we also build an index file using *samtools*.
 ```
 awk '/^S/{{print ">" $2;print $3}}' gfa_file_in | fold > fasta_out
 samtools faidx fasta_in > index_out
@@ -33,7 +33,7 @@ One of the most crucial steps in this study is mapping the reads back against th
 pbmm2 index fa_in index_out
 pbmm2 align fa_in fastq_in bam_out --unmapped --preset HIFI --sort -j 12 -J 4 -m 8G -c 99 -l 2740
 ```
-Since we by default would reject all events found on soft-clipped reads, we remove these before further analysis. The soft-clippede reads are removed using samtools:
+Since we by default would reject all events found on soft-clipped reads, we remove these before further analysis. The soft-clippede reads are removed using *samtools*:
 ```
 samtools view -h bam_in | awk '$6 !~ /H|S/{{print}}' | samtools view -bS > bam_no_clips
 samtools index bam_no_clips
@@ -58,7 +58,7 @@ The reference genomes used in this study are listed below:
   - [Papio papio](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_028645565.1/)
   - [Macaca nemestrina](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_043159975.1/)
     
-To get the reference positions of the called events, we map the reads containing recombination events using pbmm2. We then use samtools to extract the relavant information from the mapping. The code is shown below:
+To get the reference positions of the called events, we map the reads containing recombination events using *pbmm2*. We then use *samtools* to extract the relavant information from the mapping. The code is shown below:
 ```
 pbmm2 align reference_genome.fa fastq_in bam_out --preset HIFI --sort -j 12 -J 4 -m 8G
 samtools view bam_in | awk -v OFS='\t' '{{print $1,$2,$3,$4}}' > bed_out
