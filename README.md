@@ -58,7 +58,7 @@ The reference genomes used in this study are listed below:
   - [Papio papio](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_028645565.1/)
   - [Macaca nemestrina](https://www.ncbi.nlm.nih.gov/datasets/genome/GCA_043159975.1/)
     
-To get the reference positions of the called events, we map the reads containing recombination events using *pbmm2*. We then use *samtools* to extract the relavant information from the mapping. The code is shown below:
+To convert the contig positions of the called events to positions in a reference genome, we map the reads containing recombination events using *pbmm2*. We then use *samtools* to extract the relavant information from the mapping. The code is shown below:
 ```
 pbmm2 align reference_genome.fa fastq_in bam_out --preset HIFI --sort -j 12 -J 4 -m 8G
 samtools view bam_in | awk -v OFS='\t' '{{print $1,$2,$3,$4}}' > bed_out
