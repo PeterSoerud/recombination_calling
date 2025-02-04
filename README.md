@@ -22,7 +22,7 @@ From raw PacBio HiFi reads, we build a de novo assembly using the software [hifi
 ```
 hifiasm -o output.asm -t 32 input_reads.fq.gz
 ```
-The program outputs the assembly in a > **_.gfa:_**
+The program outputs the assembly in a ==.gfa==
 
 
 
