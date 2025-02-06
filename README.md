@@ -6,7 +6,7 @@ This repository contains all the relevant information to reproduce the results a
 ### Scripts used to estimate the GCV tract lengths and the amount of gBGC:
   [Tract lengths and gBGC](https://github.com/r02ap19/GeneConv)
 ### Scripts used to classify reads:
-  Vinod
+  [Classification of PacBio HiFi reads](https://github.com/vinodsinghjnu/Proj_GermReadsClassification/blob/main/README.md)
 
 ### Data from other studies
 This repository contains two folders, "tables" and "scritps", where all files in "scripts" are build specificly for this project. However, some files in the "tables" folder are built for other studies, and we list them below:
