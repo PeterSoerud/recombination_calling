@@ -1,7 +1,7 @@
 import pysam
 import sys
 from collections import defaultdict
-from utils_v6 import indel_mismatch_column_map, snp_call, build_fastq_single_read, fastq_dicts
+from utils import indel_mismatch_column_map, snp_call, build_fastq_single_read, fastq_dicts
 bam_in = sys.argv[1]
 fa_in =  sys.argv[2]
 contig_name = sys.argv[3]
